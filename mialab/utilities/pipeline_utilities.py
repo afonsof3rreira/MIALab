@@ -67,8 +67,7 @@ class FeatureExtractor:
         Returns:
             structure.BrainImage: The image with extracted features.
         """
-        # todo: add T2w features
-        warnings.warn('No features from T2-weighted image extracted.')
+        # warnings.warn('No features from T2-weighted image extracted.')
 
         if self.coordinates_feature:
             atlas_coordinates = fltr_feat.AtlasCoordinates()
@@ -77,11 +76,14 @@ class FeatureExtractor:
 
         if self.intensity_feature:
             self.img.feature_images[FeatureImageTypes.T1w_INTENSITY] = self.img.images[structure.BrainImageTypes.T1w]
+            self.img.feature_images[FeatureImageTypes.T2w_INTENSITY] = self.img.images[structure.BrainImageTypes.T2w]
 
         if self.gradient_intensity_feature:
             # compute gradient magnitude images
             self.img.feature_images[FeatureImageTypes.T1w_GRADIENT_INTENSITY] = \
                 sitk.GradientMagnitude(self.img.images[structure.BrainImageTypes.T1w])
+            self.img.feature_images[FeatureImageTypes.T2w_GRADIENT_INTENSITY] = \
+                sitk.GradientMagnitude(self.img.images[structure.BrainImageTypes.T2w])
 
         self._generate_feature_matrix()
 
@@ -191,7 +193,7 @@ def pre_process(id_: str, paths: dict, **kwargs) -> structure.BrainImage:
     if kwargs.get('registration_pre', False):
         pipeline_brain_mask.add_filter(fltr_prep.ImageRegistration())
         pipeline_brain_mask.set_param(fltr_prep.ImageRegistrationParameters(atlas_t1, img.transformation, True),
-                                      len(pipeline_brain_mask.filters) - 1)
+                              len(pipeline_brain_mask.filters) - 1)
 
     # execute pipeline on the brain mask image
     img.images[structure.BrainImageTypes.BrainMask] = pipeline_brain_mask.execute(
@@ -281,27 +283,28 @@ def post_process(img: structure.BrainImage, segmentation: sitk.Image, probabilit
     return pipeline.execute(segmentation)
 
 
-def init_evaluator() -> eval_.Evaluator:
+def init_evaluator(directory: str, result_file_name: str = 'results.csv') -> eval_.Evaluator:
     """Initializes an evaluator.
+
+    Args:
+        directory (str): The directory for the results file.
+        result_file_name (str): The result file name (CSV file).
 
     Returns:
         eval.Evaluator: An evaluator.
     """
+    os.makedirs(directory, exist_ok=True)  # generate result directory, if it does not exists
 
-    # initialize metrics
-    metrics = [metric.DiceCoefficient()]
-    # todo: add hausdorff distance, 95th percentile (see metric.HausdorffDistance)
-    warnings.warn('Initialized evaluation with the Dice coefficient. Do you know other suitable metrics?')
-
-    # define the labels to evaluate
-    labels = {1: 'WhiteMatter',
-              2: 'GreyMatter',
-              3: 'Hippocampus',
-              4: 'Amygdala',
-              5: 'Thalamus'
-              }
-
-    evaluator = eval_.SegmentationEvaluator(metrics, labels)
+    evaluator = eval_.Evaluator(eval_.ConsoleEvaluatorWriter(5))
+    evaluator.add_writer(eval_.CSVEvaluatorWriter(os.path.join(directory, result_file_name)))
+    evaluator.add_label(1, 'WhiteMatter')
+    evaluator.add_label(2, 'GreyMatter')
+    evaluator.add_label(3, 'Hippocampus')
+    evaluator.add_label(4, 'Amygdala')
+    evaluator.add_label(5, 'Thalamus')
+    evaluator.metrics = [metric.DiceCoefficient(), metric.HausdorffDistance()]
+    # warnings.warn('Initialized evaluation with the Dice coefficient. Do you know other suitable metrics?')
+    # you should add more metrics than just the Hausdorff distance!
     return evaluator
 
 
