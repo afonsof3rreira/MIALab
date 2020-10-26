@@ -14,7 +14,7 @@ import sklearn.ensemble as sk_ensemble
 
 
 def main():
-    #test
+
     print('Welcome to MIALab 2020!')
 
     # --- scikit-learn
