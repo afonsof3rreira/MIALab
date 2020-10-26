@@ -106,14 +106,14 @@ if __name__ == '__main__':
     parser.add_argument(
         '--csv_file',
         type=str,
-        default='../results/results.csv',
+        default='./mia-result/2020-10-25-20-25-51/results.csv',
         help='Path to the result CSV file.'
     )
 
     parser.add_argument(
         '--plot_dir',
         type=str,
-        default='../results',
+        default='./mia-result/2020-10-25-20-25-51',
         help='Path to the plot directory.'
     )
 

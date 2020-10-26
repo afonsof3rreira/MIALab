@@ -295,14 +295,22 @@ def init_evaluator(directory: str, result_file_name: str = 'results.csv') -> eva
     """
     os.makedirs(directory, exist_ok=True)  # generate result directory, if it does not exists
 
-    evaluator = eval_.Evaluator(eval_.ConsoleEvaluatorWriter(5))
-    evaluator.add_writer(eval_.CSVEvaluatorWriter(os.path.join(directory, result_file_name)))
-    evaluator.add_label(1, 'WhiteMatter')
-    evaluator.add_label(2, 'GreyMatter')
-    evaluator.add_label(3, 'Hippocampus')
-    evaluator.add_label(4, 'Amygdala')
-    evaluator.add_label(5, 'Thalamus')
-    evaluator.metrics = [metric.DiceCoefficient(), metric.HausdorffDistance()]
+    eval_labels = {
+        '1': 'WhiteMatter',
+        '2': 'GreyMatter',
+        '3': 'Hippocampus',
+        '4': 'Amygdala',
+        '5': 'Thalamus'
+    }
+    eval_metrics = [metric.DiceCoefficient(), metric.HausdorffDistance()]
+
+    evaluator = eval_.SegmentationEvaluator(eval_metrics,eval_labels)
+    # evaluator.add_label(1, 'WhiteMatter')
+    # evaluator.add_label(2, 'GreyMatter')
+    # evaluator.add_label(3, 'Hippocampus')
+    # evaluator.add_label(4, 'Amygdala')
+    # evaluator.add_label(5, 'Thalamus')
+    #evaluator.metrics = [metric.DiceCoefficient(), metric.HausdorffDistance()]
     # warnings.warn('Initialized evaluation with the Dice coefficient. Do you know other suitable metrics?')
     # you should add more metrics than just the Hausdorff distance!
     return evaluator
