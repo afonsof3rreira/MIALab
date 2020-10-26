@@ -38,10 +38,10 @@ def load_images(image_paths):
     # todo: read the images (T1 as sitk.sitkFloat32, GroundTruth as sitk.sitkUInt8)
     image_dict = {
         structure.BrainImageTypes.T1w: sitk.ReadImage(
-            os.path.basename(image_paths.__getitem__(structure.BrainImageTypes.T1w)), sitk.sitkFloat32),
+            image_paths.__getitem__(structure.BrainImageTypes.T1w), sitk.sitkFloat32),
         # todo: modify here
         structure.BrainImageTypes.GroundTruth: sitk.ReadImage(
-            os.path.basename(image_paths.__getitem__(structure.BrainImageTypes.GroundTruth)), sitk.sitkUInt8)
+            image_paths.__getitem__(structure.BrainImageTypes.GroundTruth), sitk.sitkUInt8)
         # todo: modify here
     }
 
