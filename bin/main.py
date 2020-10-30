@@ -96,7 +96,7 @@ def main(result_dir: str, data_atlas_dir: str, data_train_dir: str, data_test_di
 
     # load images for testing and pre-process
     pre_process_params['training'] = False
-    images_test = putil.pre_process_batch(crawler.data, pre_process_params, multi_process=False)
+    images_test = putil.pre_process_batch(crawler.data, pre_process_params, multi_process=True)
 
     images_prediction = []
     images_probabilities = []
