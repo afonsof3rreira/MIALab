@@ -67,8 +67,6 @@ class FeatureExtractor:
         Returns:
             structure.BrainImage: The image with extracted features.
         """
-        # todo: add T2w features
-
         # warnings.warn('No features from T2-weighted image extracted.')
 
         if self.coordinates_feature:
@@ -195,7 +193,7 @@ def pre_process(id_: str, paths: dict, **kwargs) -> structure.BrainImage:
     if kwargs.get('registration_pre', False):
         pipeline_brain_mask.add_filter(fltr_prep.ImageRegistration())
         pipeline_brain_mask.set_param(fltr_prep.ImageRegistrationParameters(atlas_t1, img.transformation, True),
-                                      len(pipeline_brain_mask.filters) - 1)
+                              len(pipeline_brain_mask.filters) - 1)
 
     # execute pipeline on the brain mask image
     img.images[structure.BrainImageTypes.BrainMask] = pipeline_brain_mask.execute(
@@ -288,17 +286,14 @@ def post_process(img: structure.BrainImage, segmentation: sitk.Image, probabilit
 def init_evaluator() -> eval_.Evaluator:
     """Initializes an evaluator.
 
+
     Returns:
         eval.Evaluator: An evaluator.
     """
-
     # initialize metrics
-    metrics = [metric.DiceCoefficient()]
-
+    metrics = [metric.DiceCoefficient(), metric.HausdorffDistance(95)]
     # todo: add hausdorff distance, 95th percentile (see metric.HausdorffDistance)
-    metrics.append(metric.HausdorffDistance(95.0, 'HDRFDST'))
-
-    # warnings.warn('Initialized evaluation with the Dice coefficient. Do you know other suitable metrics?')
+    #warnings.warn('Initialized evaluation with the Dice coefficient. Do you know other suitable metrics?')
 
     # define the labels to evaluate
     labels = {1: 'WhiteMatter',
@@ -309,6 +304,7 @@ def init_evaluator() -> eval_.Evaluator:
               }
 
     evaluator = eval_.SegmentationEvaluator(metrics, labels)
+
     return evaluator
 
 
