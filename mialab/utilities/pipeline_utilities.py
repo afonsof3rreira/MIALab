@@ -10,6 +10,7 @@ import pymia.filtering.filter as fltr
 import pymia.evaluation.evaluator as eval_
 import pymia.evaluation.metric as metric
 import SimpleITK as sitk
+from skimage import feature
 
 import mialab.data.structure as structure
 import mialab.filtering.feature_extraction as fltr_feat
@@ -44,6 +45,8 @@ class FeatureImageTypes(enum.Enum):
     T1w_GRADIENT_INTENSITY = 3
     T2w_INTENSITY = 4
     T2w_GRADIENT_INTENSITY = 5
+    T1w_HOG = 6
+    T2w_HOG = 7
 
 
 class FeatureExtractor:
@@ -60,6 +63,7 @@ class FeatureExtractor:
         self.coordinates_feature = kwargs.get('coordinates_feature', False)
         self.intensity_feature = kwargs.get('intensity_feature', False)
         self.gradient_intensity_feature = kwargs.get('gradient_intensity_feature', False)
+        self.HOG_feature = kwargs.get('HOG_feature', False)
 
     def execute(self) -> structure.BrainImage:
         """Extracts features from an image.
@@ -84,6 +88,13 @@ class FeatureExtractor:
                 sitk.GradientMagnitude(self.img.images[structure.BrainImageTypes.T1w])
             self.img.feature_images[FeatureImageTypes.T2w_GRADIENT_INTENSITY] = \
                 sitk.GradientMagnitude(self.img.images[structure.BrainImageTypes.T2w])
+
+        if self.HOG_feature:
+            # compute gradient magnitude images
+            self.img.feature_images[FeatureImageTypes.T1w_HOG] = \
+                feature.hog(self.img.images[structure.BrainImageTypes.T1w])
+            self.img.feature_images[FeatureImageTypes.T2w_HOG] = \
+                feature.hog(self.img.images[structure.BrainImageTypes.T2w])
 
         self._generate_feature_matrix()
 
