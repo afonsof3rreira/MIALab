@@ -90,11 +90,11 @@ class FeatureExtractor:
                 sitk.GradientMagnitude(self.img.images[structure.BrainImageTypes.T2w])
 
         if self.HOG_feature:
-            # compute gradient magnitude images
+            # compute HOG  feature
             self.img.feature_images[FeatureImageTypes.T1w_HOG] = \
-                feature.hog(self.img.images[structure.BrainImageTypes.T1w])
+                feature.hog(self._image_as_numpy_array(self.img.images[structure.BrainImageTypes.T1w]))
             self.img.feature_images[FeatureImageTypes.T2w_HOG] = \
-                feature.hog(self.img.images[structure.BrainImageTypes.T2w])
+                feature.hog(self._image_as_numpy_array(self.img.images[structure.BrainImageTypes.T2w]))
 
         self._generate_feature_matrix()
 
@@ -319,7 +319,7 @@ def init_evaluator() -> eval_.Evaluator:
 
 
 def pre_process_batch(data_batch: t.Dict[structure.BrainImageTypes, structure.BrainImage],
-                      pre_process_params: dict=None, multi_process=True) -> t.List[structure.BrainImage]:
+                      pre_process_params: dict=None, multi_process=False) -> t.List[structure.BrainImage]:
     """Loads and pre-processes a batch of images.
 
     The pre-processing includes:
@@ -349,7 +349,7 @@ def pre_process_batch(data_batch: t.Dict[structure.BrainImageTypes, structure.Br
 
 def post_process_batch(brain_images: t.List[structure.BrainImage], segmentations: t.List[sitk.Image],
                        probabilities: t.List[sitk.Image], post_process_params: dict=None,
-                       multi_process=True) -> t.List[sitk.Image]:
+                       multi_process=False) -> t.List[sitk.Image]:
     """ Post-processes a batch of images.
 
     Args:
