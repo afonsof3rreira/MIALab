@@ -2,8 +2,8 @@ from boxplot import main
 import numpy as np
 
 # method 1 directory, method 2 directory, output directory
-main('./mia-result/2020-11-05-11-24-46/results.csv', './mia-result/2020-11-04-15-58-24/results.csv',
-     './mia-result/2020-11-04-15-58-24')
+#main('./mia-result/2020-11-05-11-24-46/results.csv', './mia-result/2020-11-04-15-58-24/results.csv',
+#     './mia-result/2020-11-04-15-58-24')
 
 vec = np.array([1, 2, 3, 4, 5, 6, 5.9, 6.1, 9.9, 10.2, 5, 4])
 vec = np.sort(vec)
