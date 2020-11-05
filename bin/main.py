@@ -62,7 +62,8 @@ def main(result_dir: str, data_atlas_dir: str, data_train_dir: str, data_test_di
                           'coordinates_feature': True,
                           'intensity_feature': True,
                           'gradient_intensity_feature': True
-                          'HOG_feature': True}
+                          #'HOG_feature': False
+                          }
 
     # load images for training and pre-process
     images = putil.pre_process_batch(crawler.data, pre_process_params, multi_process=False)
