@@ -60,8 +60,9 @@ def main(result_dir: str, data_atlas_dir: str, data_train_dir: str, data_test_di
                           'normalization_pre': True,
                           'registration_pre': True,
                           'coordinates_feature': True,
-                          'intensity_feature': True,
-                          'gradient_intensity_feature': True
+                          'intensity_feature': False,
+                          'gradient_intensity_feature': False,
+                          'first_order_feature': True
                           #'HOG_feature': False
                           }
 

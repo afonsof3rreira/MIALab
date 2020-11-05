@@ -13,17 +13,26 @@ p_90 = np.percentile(vec, 90)
 
 def function_s(array, min, max):
     """ 
-    :param array: sorted ndarray
+    :param array: sorted 3D ndarray
     :param min: lower quantile value
     :param max: upper quantile value
     :return: ndarray containing values between min and max, inclusive
     """
 
     list = []
-    t = False
+
     for i in range(0, len(array)):
 
-        if min <= array[i] <= max:
+        if array.ndim != 1:
+
+            for j in range(0, len(array)):
+                for k in range(0, len(array)):
+
+                    if min <= array[i][j][k] <= max:
+                        list.append(array[i][j][k])
+
+        elif min <= array[i] <= max:
+
             list.append(array[i])
 
     return np.asarray(list)

@@ -4,8 +4,11 @@ import sys
 import SimpleITK as sitk
 import numpy as np
 import pymia.filtering.filter as fltr
+import multiprocessing
+import concurrent.futures
 from main_v2 import function_s
 from skimage import feature
+#from radiomics import shape.RadiomicsShape
 
 
 class AtlasCoordinates(fltr.Filter):
@@ -108,12 +111,13 @@ def first_order_texture_features_function(values):
     numvalues = len(values)
     p = values / (np.sum(values) + eps)
 
-    # array containing indexes of np.values between 10-th and 90-th percentile
-    values_p1090 = function_s(np.sort(values), np.percentile(values, 10),
-                              np.percentile(values, 90))
-    mean_p1090 = np.mean(values_p1090)
-    numvalues_p1090 = len(values_p1090)
-    print('la')
+    # # array containing indexes of np.values between 10-th and 90-th percentile
+    #
+    # values_p1090 = function_s(np.sort(values), np.percentile(values, 10),
+    #                           np.percentile(values, 90))
+    # mean_p1090 = np.mean(values_p1090)
+    # numvalues_p1090 = len(values_p1090)
+
     return np.array([mean,
                      np.var(values),  # variance
                      std,
@@ -131,11 +135,13 @@ def first_order_texture_features_function(values):
                      np.percentile(values, 50),
                      np.percentile(values, 75),
                      np.percentile(values, 90),
-                     np.percentile(values, 75) - np.percentile(values, 25),
-                     np.sum(values - mean) / numvalues,
-                     np.sum(values_p1090 - mean_p1090) / numvalues_p1090
+                     # np.percentile(values, 75) - np.percentile(values, 25),
+                     # np.sum(values - mean) / numvalues,
+                     # np.sum(values_p1090 - mean_p1090) / numvalues_p1090
                      ])
 
+def func(img, zz, z_offset, yy, y_offset, xx, x_offset):
+    return first_order_texture_features_function(img[zz:zz + z_offset, yy:yy + y_offset, xx:xx + x_offset])
 
 class NeighborhoodFeatureExtractor(fltr.Filter):
     """Represents a feature extractor filter, which works on a neighborhood."""
@@ -187,12 +193,17 @@ class NeighborhoodFeatureExtractor(fltr.Filter):
         pad = ((0, z_offset), (0, y_offset), (0, x_offset))
         img_arr_padded = np.pad(img_arr, pad, 'symmetric')
 
-        for xx in range(x):
-            for yy in range(y):
-                for zz in range(z):
+        with concurrent.futures.ProcessPoolExecutor() as executor:
+            for xx in range(x):
+                for yy in range(y):
+                    for zz in range(z):
 
-                    val = self.function(img_arr_padded[zz:zz + z_offset, yy:yy + y_offset, xx:xx + x_offset])
-                    img_out_arr[zz, yy, xx] = val
+                    # val = self.function(img_arr_padded[zz:zz + z_offset, yy:yy + y_offset, xx:xx + x_offset])
+                    # img_out_arr[zz, yy, xx] = val
+
+                        f1 = executor.submit(func, img_arr_padded, zz, z_offset, yy, y_offset, xx, x_offset)
+                        val = f1.result()
+                        img_out_arr[zz, yy, xx] = val
 
         img_out = sitk.GetImageFromArray(img_out_arr)
         img_out.CopyInformation(image)
