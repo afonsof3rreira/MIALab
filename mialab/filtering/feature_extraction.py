@@ -4,6 +4,7 @@ import sys
 import SimpleITK as sitk
 import numpy as np
 import pymia.filtering.filter as fltr
+from main_v2 import function_s
 from skimage import feature
 
 
@@ -89,9 +90,13 @@ def first_order_texture_features_function(values):
             - range
             - percentile10th
             - percentile25th
-            - percentile50th
+            - percentile50th = median
             - percentile75th
             - percentile90th
+              -----added----
+            - inter-quartile range = p75 - p25
+            - mean absolute deviation
+            - robust mean absolute deviation
     """
     eps = sys.float_info.epsilon  # to avoid division by zero
 
@@ -102,6 +107,13 @@ def first_order_texture_features_function(values):
     max_ = np.max(values)
     numvalues = len(values)
     p = values / (np.sum(values) + eps)
+
+    # array containing indexes of np.values between 10-th and 90-th percentile
+    values_p1090 = function_s(np.sort(values), np.percentile(values, 10),
+                              np.percentile(values, 90))
+    mean_p1090 = np.mean(values_p1090)
+    numvalues_p1090 = len(values_p1090)
+    print('la')
     return np.array([mean,
                      np.var(values),  # variance
                      std,
@@ -118,7 +130,10 @@ def first_order_texture_features_function(values):
                      np.percentile(values, 25),
                      np.percentile(values, 50),
                      np.percentile(values, 75),
-                     np.percentile(values, 90)
+                     np.percentile(values, 90),
+                     np.percentile(values, 75) - np.percentile(values, 25),
+                     np.sum(values - mean) / numvalues,
+                     np.sum(values_p1090 - mean_p1090) / numvalues_p1090
                      ])
 
 

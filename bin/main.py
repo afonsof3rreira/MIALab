@@ -29,7 +29,8 @@ LOADING_KEYS = [structure.BrainImageTypes.T1w,
                 structure.BrainImageTypes.BrainMask,
                 structure.BrainImageTypes.RegistrationTransform]  # the list of data we will load
 
-np.random.seed(42)
+
+# np.random.seed(42)
 
 def main(result_dir: str, data_atlas_dir: str, data_train_dir: str, data_test_dir: str):
     """Brain tissue segmentation using decision forests.
@@ -61,7 +62,7 @@ def main(result_dir: str, data_atlas_dir: str, data_train_dir: str, data_test_di
                           'registration_pre': True,
                           'coordinates_feature': True,
                           'intensity_feature': True,
-                          'gradient_intensity_feature': True
+                          'gradient_intensity_feature': True,
                           'HOG_feature': True}
 
     # load images for training and pre-process
@@ -71,10 +72,10 @@ def main(result_dir: str, data_atlas_dir: str, data_train_dir: str, data_test_di
     data_train = np.concatenate([img.feature_matrix[0] for img in images])
     labels_train = np.concatenate([img.feature_matrix[1] for img in images]).squeeze()
 
-    #warnings.warn('Random forest parameters not properly set.')
+    # warnings.warn('Random forest parameters not properly set.')
     forest = sk_ensemble.RandomForestClassifier(max_features=images[0].feature_matrix[0].shape[1],
-                                                n_estimators=10, #100
-                                                max_depth=10) #10
+                                                n_estimators=10,  # 100
+                                                max_depth=10)  # 10
 
     start_time = timeit.default_timer()
     forest.fit(data_train, labels_train)
