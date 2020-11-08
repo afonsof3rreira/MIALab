@@ -5,10 +5,8 @@ import SimpleITK as sitk
 import numpy as np
 import pymia.filtering.filter as fltr
 import multiprocessing
-import concurrent.futures
-from main_v2 import function_s
-from skimage import feature
-#from radiomics import shape.RadiomicsShape
+import time
+# from radiomics import shape.RadiomicsShape
 
 
 class AtlasCoordinates(fltr.Filter):
@@ -111,8 +109,8 @@ def first_order_texture_features_function(values):
     numvalues = len(values)
     p = values / (np.sum(values) + eps)
 
-    # # array containing indexes of np.values between 10-th and 90-th percentile
-    #
+    # array containing indexes of np.values between 10-th and 90-th percentile
+
     # values_p1090 = function_s(np.sort(values), np.percentile(values, 10),
     #                           np.percentile(values, 90))
     # mean_p1090 = np.mean(values_p1090)
@@ -120,28 +118,64 @@ def first_order_texture_features_function(values):
 
     return np.array([mean,
                      np.var(values),  # variance
-                     std,
-                     np.sqrt(numvalues * (numvalues - 1)) / (numvalues - 2) * np.sum((values - mean) ** 3) /
-                     (numvalues*std**3 + eps),  # adjusted Fisher-Pearson coefficient of skewness
-                     np.sum((values - mean) ** 4) / (numvalues * std ** 4 + eps),  # kurtosis
-                     np.sum(-p * np.log2(p)),  # entropy
-                     np.sum(p**2),  # energy (intensity histogram uniformity)
-                     snr,
-                     min_,
-                     max_,
-                     max_ - min_,
-                     np.percentile(values, 10),
-                     np.percentile(values, 25),
-                     np.percentile(values, 50),
-                     np.percentile(values, 75),
-                     np.percentile(values, 90),
+                     # std,
+                     # np.sqrt(numvalues * (numvalues - 1)) / (numvalues - 2) * np.sum((values - mean) ** 3) /
+                     # (numvalues * std ** 3 + eps),  # adjusted Fisher-Pearson coefficient of skewness
+                     # np.sum((values - mean) ** 4) / (numvalues * std ** 4 + eps),  # kurtosis
+                     # np.sum(-p * np.log2(p)),  # entropy
+                     # np.sum(p ** 2),  # energy (intensity histogram uniformity)
+                     # snr,
+                     # min_,
+                     # max_,
+                     # max_ - min_,
+                     # np.percentile(values, 10),
+                     # np.percentile(values, 25),
+                     # np.percentile(values, 50),
+                     # np.percentile(values, 75),
+                     # np.percentile(values, 90),
                      # np.percentile(values, 75) - np.percentile(values, 25),
                      # np.sum(values - mean) / numvalues,
                      # np.sum(values_p1090 - mean_p1090) / numvalues_p1090
                      ])
 
-def func(img, zz, z_offset, yy, y_offset, xx, x_offset):
-    return first_order_texture_features_function(img[zz:zz + z_offset, yy:yy + y_offset, xx:xx + x_offset])
+
+def func_2(padded_img, out_img, zz, z_offset, y_offset, x_offset):
+
+    """Calculates 1st-order features for the zz-th 2-D "slice" of the whole brain image
+
+            Args:
+                padded_img (np.array): padded image from which features are extracted
+                out_img (np.array): original image with shape (z, y, x, NP)
+                    where NP = number of components per pixel
+                zz (int): zz fixed axis value for which 2-D slice is obtained
+                z_offset (int): z-axis offset
+                y_offset (int): y-axis offset
+                x_offset(int) : x-axis offset
+
+            Returns:
+                List[np.array, int]: A List element containing the zz-th feature-extracted-slice and the zz value
+            """
+
+    # np.shape(out_img) = (z, y, x, NP)
+    # sub_dim: A tuple with dimensions (y, x, NP) where NP = number of components per pixel
+    sub_dim = np.shape(out_img)[1:]
+
+    mat = np.zeros(sub_dim)
+
+    for yy in range(sub_dim[0]):
+        for xx in range(sub_dim[1]):
+
+            val = first_order_texture_features_function(
+                padded_img[zz:zz + z_offset, yy:yy + y_offset, xx:xx + x_offset])
+            mat[yy][xx] = val
+
+    return [mat, zz]
+
+
+def func_2_aux(args):
+    """auxiliary function that enables using func_2 with a single argument (List)"""
+    return func_2(*args)
+
 
 class NeighborhoodFeatureExtractor(fltr.Filter):
     """Represents a feature extractor filter, which works on a neighborhood."""
@@ -153,12 +187,13 @@ class NeighborhoodFeatureExtractor(fltr.Filter):
         self.kernel = kernel
         self.function = function_
 
-    def execute(self, image: sitk.Image, params: fltr.FilterParams=None) -> sitk.Image:
+    def execute(self, image: sitk.Image, params: fltr.FilterParams = None, multiprocessing_features: bool = False) -> sitk.Image:
         """Executes a neighborhood feature extractor on an image.
 
         Args:
             image (sitk.Image): The image.
             params (fltr.FilterParams): The parameters (unused).
+            multiprocessing_features: uses multiprocessing for feature extraction if specified as True
 
         Returns:
             sitk.Image: The normalized image.
@@ -166,44 +201,75 @@ class NeighborhoodFeatureExtractor(fltr.Filter):
         Raises:
             ValueError: If image is not 3-D.
         """
-
+        # image.GetSize() = (197, 233, 189)
         if image.GetDimension() != 3:
             raise ValueError('image needs to be 3-D')
 
         # test the function and get the output dimension for later reshaping
         function_output = self.function(np.array([1, 2, 3]))
-        if np.isscalar(function_output):
-            img_out = sitk.Image(image.GetSize(), sitk.sitkFloat32)
-        elif not isinstance(function_output, np.ndarray):
+        if np.isscalar(function_output):  # how can this ever be a scalar if first_order_features output nd.arrays?
+            img_out = sitk.Image(image.GetSize(), sitk.sitkFloat32)  # image is 3D (N x M x C)
+        elif not isinstance(function_output, np.ndarray):  # if function_output isn't nd.array (scalar nor array)
             raise ValueError('function must return a scalar or a 1-D np.ndarray')
-        elif function_output.ndim > 1:
+        elif function_output.ndim > 1:  # if nd.array is non 1-D
             raise ValueError('function must return a scalar or a 1-D np.ndarray')
-        elif function_output.shape[0] <= 1:
+        elif function_output.shape[0] <= 1:  # if nd.array doesn't have at least 2 elements
             raise ValueError('function must return a scalar or a 1-D np.ndarray with at least two elements')
-        else:
+        else:  # ---------------(197, 233, 189)----------------------------number of features: int
             img_out = sitk.Image(image.GetSize(), sitk.sitkVectorFloat32, function_output.shape[0])
-
-        img_out_arr = sitk.GetArrayFromImage(img_out)
-        img_arr = sitk.GetArrayFromImage(image)
+        # this last else will create an img_out which has a number of components per pixel = number of features
+        #   i.e. another dimension will be added for the 3-D matrix, making it "4-D"
+        # prove: "number of components per pixel = img_out.GetNumberOfComponentsPerPixel()
+        #   img_out still has size = (197, 233, 189)
+        # ------------------------------------------------- z    y    x
+        img_out_arr = sitk.GetArrayFromImage(img_out)  # (189, 233, 197, 2)
+        img_arr = sitk.GetArrayFromImage(image)  # (189, 233, 197)   shape is "swapped"
         z, y, x = img_arr.shape
-
         z_offset = self.kernel[2]
         y_offset = self.kernel[1]
         x_offset = self.kernel[0]
         pad = ((0, z_offset), (0, y_offset), (0, x_offset))
-        img_arr_padded = np.pad(img_arr, pad, 'symmetric')
+        #   img_arr is extended by adding 3 sheets, 3 rows and 3 columns
+        img_arr_padded = np.pad(img_arr, pad, 'symmetric')  # (192, 236, 200)
 
-        with concurrent.futures.ProcessPoolExecutor() as executor:
+        start = time.perf_counter()
+
+        # with concurrent.futures.ProcessPoolExecutor() as executor:
+        # params_list = list_maker(img_arr_padded, y, y_offset, z, z_offset, x, x_offset)
+        if not multiprocessing_features:
+
             for xx in range(x):
                 for yy in range(y):
                     for zz in range(z):
-
-                    # val = self.function(img_arr_padded[zz:zz + z_offset, yy:yy + y_offset, xx:xx + x_offset])
-                    # img_out_arr[zz, yy, xx] = val
-
-                        f1 = executor.submit(func, img_arr_padded, zz, z_offset, yy, y_offset, xx, x_offset)
-                        val = f1.result()
+                        print('x, y, z = ' + str(xx) + ' ' + str(yy) + ' ' + str(zz))
+                        val = self.function(img_arr_padded[zz:zz + z_offset, yy:yy + y_offset, xx:xx + x_offset])
                         img_out_arr[zz, yy, xx] = val
+
+        else:
+
+            rets = []
+            # builds sets of arguments to be fed to pools
+            for zz in range(z):
+                rets.append([img_arr_padded, img_out_arr, zz, z_offset, y_offset, x_offset])
+            # sets a limit of cpu cores to be used, without overloading hardware: available cores - 1
+            p = multiprocessing.Pool(multiprocessing.cpu_count() - 1)
+
+            result = p.map(func_2_aux, rets)
+
+            p.close()
+            p.join()
+
+            # Assigns each obtained "zz-slice" to each row of the 4-D array output image
+            # We have to check the whole result and assign slices in a sorted way since pools are not synchronous
+            for zz in range(z):
+                for zzi in range(z):
+
+                    if result[zzi][1] == zz:
+                        img_out_arr[zz, :, :] = result[zzi][0]
+                        break
+
+        finish = time.perf_counter()
+        print(f'Finished in {round(finish - start, 2)} seconds(s)')
 
         img_out = sitk.GetImageFromArray(img_out_arr)
         img_out.CopyInformation(image)
@@ -231,7 +297,7 @@ class RandomizedTrainingMaskGenerator:
     def get_mask(ground_truth: sitk.Image,
                  ground_truth_labels: list,
                  label_percentages: list,
-                 background_mask: sitk.Image=None) -> sitk.Image:
+                 background_mask: sitk.Image = None) -> sitk.Image:
         """Gets a training mask.
 
         Args:
