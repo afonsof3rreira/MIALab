@@ -45,6 +45,8 @@ class FeatureImageTypes(enum.Enum):
     T1w_GRADIENT_INTENSITY = 3
     T2w_INTENSITY = 4
     T2w_GRADIENT_INTENSITY = 5
+    T1w_FOF = 6
+    T2w_FOF = 7
     # T1w_HOG = 6
     # T2w_HOG = 7
 
@@ -63,6 +65,7 @@ class FeatureExtractor:
         self.coordinates_feature = kwargs.get('coordinates_feature', False)
         self.intensity_feature = kwargs.get('intensity_feature', False)
         self.gradient_intensity_feature = kwargs.get('gradient_intensity_feature', False)
+        self.first_order_feature = kwargs.get('first_order_feature', True)
         # self.HOG_feature = kwargs.get('HOG_feature', False)
 
     def execute(self) -> structure.BrainImage:
@@ -88,6 +91,16 @@ class FeatureExtractor:
                 sitk.GradientMagnitude(self.img.images[structure.BrainImageTypes.T1w])
             self.img.feature_images[FeatureImageTypes.T2w_GRADIENT_INTENSITY] = \
                 sitk.GradientMagnitude(self.img.images[structure.BrainImageTypes.T2w])
+
+        if self.first_order_feature:
+            # compute first order features
+            neighborhood_features = fltr_feat.NeighborhoodFeatureExtractor()
+            self.img.feature_images[FeatureImageTypes.T1w_FOF] = \
+                neighborhood_features.execute(self.img.images[structure.BrainImageTypes.T1w],
+                                              multiprocessing_features=True)
+            self.img.feature_images[FeatureImageTypes.T2w_FOF] = \
+                neighborhood_features.execute(self.img.images[structure.BrainImageTypes.T2w],
+                                              multiprocessing_features=True)
 
         # if self.HOG_feature:
         #     # compute gradient magnitude images
@@ -205,7 +218,7 @@ def pre_process(id_: str, paths: dict, **kwargs) -> structure.BrainImage:
     if kwargs.get('registration_pre', False):
         pipeline_brain_mask.add_filter(fltr_prep.ImageRegistration())
         pipeline_brain_mask.set_param(fltr_prep.ImageRegistrationParameters(atlas_t1, img.transformation, True),
-                              len(pipeline_brain_mask.filters) - 1)
+                                      len(pipeline_brain_mask.filters) - 1)
 
     # execute pipeline on the brain mask image
     img.images[structure.BrainImageTypes.BrainMask] = pipeline_brain_mask.execute(
@@ -304,7 +317,7 @@ def init_evaluator() -> eval_.Evaluator:
     """
     # initialize metrics
     metrics = [metric.DiceCoefficient(), metric.HausdorffDistance(95)]
-    #warnings.warn('Initialized evaluation with the Dice coefficient. Do you know other suitable metrics?')
+    # warnings.warn('Initialized evaluation with the Dice coefficient. Do you know other suitable metrics?')
 
     # define the labels to evaluate
     labels = {1: 'WhiteMatter',
@@ -320,7 +333,7 @@ def init_evaluator() -> eval_.Evaluator:
 
 
 def pre_process_batch(data_batch: t.Dict[structure.BrainImageTypes, structure.BrainImage],
-                      pre_process_params: dict=None, multi_process=True) -> t.List[structure.BrainImage]:
+                      pre_process_params: dict = None, multi_process=True) -> t.List[structure.BrainImage]:
     """Loads and pre-processes a batch of images.
 
     The pre-processing includes:
@@ -349,7 +362,7 @@ def pre_process_batch(data_batch: t.Dict[structure.BrainImageTypes, structure.Br
 
 
 def post_process_batch(brain_images: t.List[structure.BrainImage], segmentations: t.List[sitk.Image],
-                       probabilities: t.List[sitk.Image], post_process_params: dict=None,
+                       probabilities: t.List[sitk.Image], post_process_params: dict = None,
                        multi_process=True) -> t.List[sitk.Image]:
     """ Post-processes a batch of images.
 
