@@ -251,8 +251,10 @@ class NeighborhoodFeatureExtractor(fltr.Filter):
             # builds sets of arguments to be fed to pools
             for zz in range(z):
                 rets.append([img_arr_padded, img_out_arr, zz, z_offset, y_offset, x_offset])
-            # sets a limit of cpu cores to be used, without overloading hardware: available cores - 1
-            p = multiprocessing.Pool(multiprocessing.cpu_count() - 1)
+
+            # TODO: change argument to (multiprocessing.cpu_count() - 1) when using own computer
+            # as it sets a limit of cpu cores to be used, without overloading hardware
+            p = multiprocessing.Pool(multiprocessing.cpu_count())
 
             result = p.map(func_2_aux, rets)
 
