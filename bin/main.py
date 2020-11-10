@@ -22,6 +22,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(sys.argv[0]), '..'))  # append t
 import mialab.data.structure as structure
 import mialab.utilities.file_access_utilities as futil
 import mialab.utilities.pipeline_utilities as putil
+import mialab.filtering.feature_extraction as fext
 
 import bin.Ubelix_file_reporter as reporter
 
@@ -59,6 +60,7 @@ def main(result_dir: str, data_atlas_dir: str, data_train_dir: str, data_test_di
                                           LOADING_KEYS,
                                           futil.BrainImageFilePathGenerator(),
                                           futil.DataDirectoryFilter())
+
     pre_process_params = {'skullstrip_pre': True,
                           'normalization_pre': True,
                           'registration_pre': True,
@@ -68,6 +70,22 @@ def main(result_dir: str, data_atlas_dir: str, data_train_dir: str, data_test_di
                           'first_order_feature': True
                           # 'HOG_feature': False
                           }
+
+    # TODO: comment/uncomment 1st-O. features on feature_extraction.py to disable/enable
+
+    fo_features_list = fext.selected_features().getSelectedFeatures()
+
+    feature_dictionary = dict()
+
+    for key, val in pre_process_params:
+        if key == 'coordinates_feature' and val:
+            feature_dictionary.update({1: key})
+        if key == 'intensity_feature' and val:
+            feature_dictionary.update({2: key})
+        if key == 'gradient_intensity_feature' and val:
+            feature_dictionary.update({3: key})
+        if key == 'first_order_feature' and val:
+            feature_dictionary.update({4: fo_features_list})
 
     # load images for training and pre-process
     images = putil.pre_process_batch(crawler.data, pre_process_params, multi_process=False)
@@ -157,10 +175,8 @@ def main(result_dir: str, data_atlas_dir: str, data_train_dir: str, data_test_di
 
     # clear results such that the evaluator is ready for the next evaluation
     evaluator.clear()
-    #   -----------------------------------
 
-    # TODO: uncomment this line and make it dictionary appear here somehow
-    # reporter.feature_writer(result_dir, feature_dictionary, 'feature_report.csv')
+    reporter.feature_writer(result_dir, feature_dictionary, 'feature_report.csv')
 
 
 if __name__ == "__main__":
