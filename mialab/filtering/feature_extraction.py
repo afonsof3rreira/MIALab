@@ -6,6 +6,8 @@ import numpy as np
 import pymia.filtering.filter as fltr
 import multiprocessing
 import time
+
+
 # from radiomics import shape.RadiomicsShape
 
 
@@ -69,6 +71,67 @@ class AtlasCoordinates(fltr.Filter):
             .format(self=self)
 
 
+def percentile_subset(array, min, max):
+    """ Outputs a subset of image array with gray levels in between, or equal to the "min"-th and "max"-th percentile
+
+    Args:
+        array (np.array): sorted 3D array
+        min (float): lower quantile value
+        max (float): upper quantile value
+
+    Returns:
+        np.array: A vector containing values between min and max, inclusive
+    """
+
+    list = []
+
+    for i in range(0, len(array)):
+
+        if array.ndim != 1:
+
+            for j in range(0, len(array)):
+                for k in range(0, len(array)):
+
+                    if min <= array[i][j][k] <= max:
+                        list.append(array[i][j][k])
+
+        elif min <= array[i] <= max:
+
+            list.append(array[i])
+
+    return np.asarray(list)
+
+
+class selected_features:
+
+    def __init__(self):
+        self.featureList = []
+
+        # TODO: comment features that are not used in first_order_texture_features_function
+        self.featureList.append("mean")
+        self.featureList.append("variance")
+        self.featureList.append("sigma")
+        self.featureList.append("skewness")
+        self.featureList.append("kurtosis")
+        self.featureList.append("entropy")
+        self.featureList.append("snr")
+        self.featureList.append("min")
+        self.featureList.append("max")
+        self.featureList.append("range")
+        # self.featureList.append("percentile10th")
+        # self.featureList.append("percentile25th")
+        # self.featureList.append("percentile50th")
+        # self.featureList.append("percentile75th")
+        # self.featureList.append("percentile90th")
+        # '-----added----'
+        # self.featureList.append("inter-quartile range = p75 - p25")
+        # self.featureList.append("mean absolute deviation")
+        # self.featureList.append("robust mean absolute deviation")
+
+    def getSelectedFeatures(self):
+        return self.featureList
+
+
 def first_order_texture_features_function(values):
     """Calculates first-order texture features.
 
@@ -109,25 +172,25 @@ def first_order_texture_features_function(values):
     numvalues = len(values)
     p = values / (np.sum(values) + eps)
 
-    # array containing indexes of np.values between 10-th and 90-th percentile
+    #   array containing indexes of np.values between 10-th and 90-th percentile
 
-    # values_p1090 = function_s(np.sort(values), np.percentile(values, 10),
-    #                           np.percentile(values, 90))
+    # values_p1090 = percentile_subset(np.sort(values), np.percentile(values, 10),
+    #                                  np.percentile(values, 90))
     # mean_p1090 = np.mean(values_p1090)
     # numvalues_p1090 = len(values_p1090)
 
     return np.array([mean,
                      np.var(values),  # variance
-                     # std,
-                     # np.sqrt(numvalues * (numvalues - 1)) / (numvalues - 2) * np.sum((values - mean) ** 3) /
-                     # (numvalues * std ** 3 + eps),  # adjusted Fisher-Pearson coefficient of skewness
-                     # np.sum((values - mean) ** 4) / (numvalues * std ** 4 + eps),  # kurtosis
-                     # np.sum(-p * np.log2(p)),  # entropy
-                     # np.sum(p ** 2),  # energy (intensity histogram uniformity)
-                     # snr,
-                     # min_,
-                     # max_,
-                     # max_ - min_,
+                     std,
+                     np.sqrt(numvalues * (numvalues - 1)) / (numvalues - 2) * np.sum((values - mean) ** 3) /
+                     (numvalues * std ** 3 + eps),  # adjusted Fisher-Pearson coefficient of skewness
+                     np.sum((values - mean) ** 4) / (numvalues * std ** 4 + eps),  # kurtosis
+                     np.sum(-p * np.log2(p)),  # entropy
+                     np.sum(p ** 2),  # energy (intensity histogram uniformity)
+                     snr,
+                     min_,
+                     max_,
+                     max_ - min_,
                      # np.percentile(values, 10),
                      # np.percentile(values, 25),
                      # np.percentile(values, 50),
@@ -139,8 +202,7 @@ def first_order_texture_features_function(values):
                      ])
 
 
-def func_2(padded_img, out_img, zz, z_offset, y_offset, x_offset):
-
+def firstOFeature_slice(padded_img, out_img, zz, z_offset, y_offset, x_offset):
     """Calculates 1st-order features for the zz-th 2-D "slice" of the whole brain image
 
             Args:
@@ -164,7 +226,6 @@ def func_2(padded_img, out_img, zz, z_offset, y_offset, x_offset):
 
     for yy in range(sub_dim[0]):
         for xx in range(sub_dim[1]):
-
             val = first_order_texture_features_function(
                 padded_img[zz:zz + z_offset, yy:yy + y_offset, xx:xx + x_offset])
             mat[yy][xx] = val
@@ -172,9 +233,9 @@ def func_2(padded_img, out_img, zz, z_offset, y_offset, x_offset):
     return [mat, zz]
 
 
-def func_2_aux(args):
+def firstOFeature_slice_aux(args):
     """auxiliary function that enables using func_2 with a single argument (List)"""
-    return func_2(*args)
+    return firstOFeature_slice(*args)
 
 
 class NeighborhoodFeatureExtractor(fltr.Filter):
@@ -187,7 +248,8 @@ class NeighborhoodFeatureExtractor(fltr.Filter):
         self.kernel = kernel
         self.function = function_
 
-    def execute(self, image: sitk.Image, params: fltr.FilterParams = None, multiprocessing_features: bool = False) -> sitk.Image:
+    def execute(self, image: sitk.Image, params: fltr.FilterParams = None,
+                multiprocessing_features: bool = False) -> sitk.Image:
         """Executes a neighborhood feature extractor on an image.
 
         Args:
@@ -251,10 +313,12 @@ class NeighborhoodFeatureExtractor(fltr.Filter):
             # builds sets of arguments to be fed to pools
             for zz in range(z):
                 rets.append([img_arr_padded, img_out_arr, zz, z_offset, y_offset, x_offset])
-            # sets a limit of cpu cores to be used, without overloading hardware: available cores - 1
-            p = multiprocessing.Pool(multiprocessing.cpu_count() - 1)
 
-            result = p.map(func_2_aux, rets)
+            # TODO: change argument to (multiprocessing.cpu_count() - 1) when using own computer
+            # as it sets a limit of cpu cores to be used, without overloading hardware
+            p = multiprocessing.Pool(multiprocessing.cpu_count())
+
+            result = p.map(firstOFeature_slice_aux, rets)
 
             p.close()
             p.join()

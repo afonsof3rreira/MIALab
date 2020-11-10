@@ -23,11 +23,14 @@ import mialab.data.structure as structure
 import mialab.utilities.file_access_utilities as futil
 import mialab.utilities.pipeline_utilities as putil
 
+import bin.Ubelix_file_reporter as reporter
+
 LOADING_KEYS = [structure.BrainImageTypes.T1w,
                 structure.BrainImageTypes.T2w,
                 structure.BrainImageTypes.GroundTruth,
                 structure.BrainImageTypes.BrainMask,
                 structure.BrainImageTypes.RegistrationTransform]  # the list of data we will load
+
 
 # np.random.seed(42)
 
@@ -154,6 +157,10 @@ def main(result_dir: str, data_atlas_dir: str, data_train_dir: str, data_test_di
 
     # clear results such that the evaluator is ready for the next evaluation
     evaluator.clear()
+    #   -----------------------------------
+
+    # TODO: uncomment this line and make it dictionary appear here somehow
+    # reporter.feature_writer(result_dir, feature_dictionary, 'feature_report.csv')
 
 
 if __name__ == "__main__":
