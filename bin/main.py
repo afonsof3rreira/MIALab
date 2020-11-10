@@ -77,7 +77,7 @@ def main(result_dir: str, data_atlas_dir: str, data_train_dir: str, data_test_di
 
     feature_dictionary = dict()
 
-    for key, val in pre_process_params:
+    for key, val in pre_process_params.items():
         if key == 'coordinates_feature' and val:
             feature_dictionary.update({1: key})
         if key == 'intensity_feature' and val:
