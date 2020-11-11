@@ -67,19 +67,8 @@ class FeatureExtractor:
         self.gradient_intensity_feature = kwargs.get('gradient_intensity_feature', False)
         self.first_order_feature = kwargs.get('first_order_feature', True)
         # self.HOG_feature = kwargs.get('HOG_feature', False)
-        self.featureD = dict()
 
-        if self.coordinates_feature:
-            self.featureD.update({1: 'coordinates feature'})
 
-        if self.intensity_feature:
-            self.featureD.update({2: 'intensity feature'})
-
-        if self.gradient_intensity_feature:
-            self.featureD.update({3: 'gradient intensity feature'})
-
-        if self.first_order_feature:
-            self.featureD.update({4: fltr_feat.selected_features().getSelectedFeatures()})
 
     def execute(self) -> structure.BrainImage:
         """Extracts features from an image.
@@ -289,8 +278,7 @@ def pre_process(id_: str, paths: dict, **kwargs) -> structure.BrainImage:
     # extract the features
     feature_extractor = FeatureExtractor(img, **kwargs)
 
-    # TODO: try bringing the feature dictionary to the main with the least changes possible in the code
-    feature_dictionary = feature_extractor.getFeatures_dictionary()
+
 
     img = feature_extractor.execute()
 
