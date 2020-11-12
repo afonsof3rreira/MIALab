@@ -113,7 +113,7 @@ class selected_features:
         self.featureList.append("sigma")
         self.featureList.append("skewness")
         self.featureList.append("kurtosis")
-        self.featureList.append("entropy")
+        #self.featureList.append("entropy")
         self.featureList.append("snr")
         self.featureList.append("min")
         self.featureList.append("max")
@@ -184,7 +184,7 @@ def first_order_texture_features_function(values):
                      std,
                      np.sqrt(numvalues * (numvalues - 1)) / (numvalues - 2) * np.sum((values - mean) ** 3) / (numvalues * std ** 3 + eps),  # adjusted Fisher-Pearson coefficient of skewness
                      np.sum((values - mean) ** 4) / (numvalues * std ** 4 + eps),  # kurtosis
-                     np.sum(-p * np.log2(p)),  # entropy
+                     #np.sum(-p * np.log2(p)),  # entropy
                      np.sum(p ** 2),  # energy (intensity histogram uniformity)
                      snr,
                      min_,
