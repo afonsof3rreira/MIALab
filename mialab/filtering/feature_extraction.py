@@ -111,18 +111,18 @@ class selected_features:
         self.featureList.append("mean")
         self.featureList.append("variance")
         self.featureList.append("sigma")
-        self.featureList.append("skewness")
-        self.featureList.append("kurtosis")
+        # self.featureList.append("skewness")
+        # self.featureList.append("kurtosis")
         #self.featureList.append("entropy")
         self.featureList.append("snr")
         self.featureList.append("min")
         self.featureList.append("max")
         self.featureList.append("range")
-        self.featureList.append("percentile10th")
-        self.featureList.append("percentile25th")
-        self.featureList.append("percentile50th")
-        self.featureList.append("percentile75th")
-        self.featureList.append("percentile90th")
+        # self.featureList.append("percentile10th")
+        # self.featureList.append("percentile25th")
+        # self.featureList.append("percentile50th")
+        # self.featureList.append("percentile75th")
+        # self.featureList.append("percentile90th")
         # '-----added----'
         # self.featureList.append("inter-quartile range = p75 - p25")
         # self.featureList.append("mean absolute deviation")
@@ -182,19 +182,19 @@ def first_order_texture_features_function(values):
     return np.array([mean,
                      np.var(values),  # variance
                      std,
-                     np.sqrt(numvalues * (numvalues - 1)) / (numvalues - 2) * np.sum((values - mean) ** 3) / (numvalues * std ** 3 + eps),  # adjusted Fisher-Pearson coefficient of skewness
-                     np.sum((values - mean) ** 4) / (numvalues * std ** 4 + eps),  # kurtosis
+                     # np.sqrt(numvalues * (numvalues - 1)) / (numvalues - 2) * np.sum((values - mean) ** 3) / (numvalues * std ** 3 + eps),  # adjusted Fisher-Pearson coefficient of skewness
+                     # np.sum((values - mean) ** 4) / (numvalues * std ** 4 + eps),  # kurtosis
                      #np.sum(-p * np.log2(p)),  # entropy
-                     np.sum(p ** 2),  # energy (intensity histogram uniformity)
+                     # np.sum(p ** 2),  # energy (intensity histogram uniformity)
                      snr,
                      min_,
                      max_,
                      max_ - min_,
-                     np.percentile(values, 10),
-                     np.percentile(values, 25),
-                     np.percentile(values, 50),
-                     np.percentile(values, 75),
-                     np.percentile(values, 90),
+                     # np.percentile(values, 10),
+                     # np.percentile(values, 25),
+                     # np.percentile(values, 50),
+                     # np.percentile(values, 75),
+                     # np.percentile(values, 90),
                      # -----added----
                      # np.percentile(values, 75) - np.percentile(values, 25),
                      # np.sum(values - mean) / numvalues,
