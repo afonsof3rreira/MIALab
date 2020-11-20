@@ -81,8 +81,8 @@ def main(csv_file: str, csv_file2: str, plot_dir: str):
     dfs = [df_method1, df_method2]
 
     # some parameters to improve the plot's readability
-    methods = ('Method 1', 'Method 2')
-    title = 'Your experiment comparing method 1 and 2 on {}'
+    methods = ('Test 1', 'Test 3')
+    title = 'Evaluation metrics for tests 1 and 3 on {}'
 
     for label in labels:
         for metric, (min_, max_) in zip(metrics, metrics_yaxis_limits):
