@@ -124,7 +124,7 @@ class selected_features:
         self.featureList.append("percentile75th")
         self.featureList.append("percentile90th")
         # '-----added----'
-        self.featureList.append("inter-quartile range = p75 - p25")
+        #self.featureList.append("inter-quartile range = p75 - p25")
         self.featureList.append("mean absolute deviation")
         self.featureList.append("robust mean absolute deviation")
 
@@ -198,7 +198,7 @@ def first_order_texture_features_function(values):
                      # -----added----
                      np.percentile(values, 75) - np.percentile(values, 25),
                      np.sum(values - mean) / numvalues,
-                     np.sum(values_p1090 - mean_p1090) / numvalues_p1090
+                     #np.sum(values_p1090 - mean_p1090) / numvalues_p1090
                      ])
 
 
