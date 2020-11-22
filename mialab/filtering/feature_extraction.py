@@ -71,6 +71,23 @@ class AtlasCoordinates(fltr.Filter):
             .format(self=self)
 
 
+# Code adapted from https://www.learnopencv.com/histogram-of-oriented-gradients/
+# --> article for more info: https://www.hindawi.com/journals/bmri/2017/3956363/
+
+def hog_features(values):
+    """Calculates the HOG-features
+
+    Args:
+        values (np.array): THe values to calculate the HOG-features from.
+
+    Returns:
+        np.array: A vector containing the HOG-features
+    """
+    # Here comes your code
+    return 1
+
+
+
 def percentile_subset(array, min, max):
     """ Outputs a subset of image array with gray levels in between, or equal to the "min"-th and "max"-th percentile
 
@@ -182,9 +199,10 @@ def first_order_texture_features_function(values):
     return np.array([mean,
                      np.var(values),  # variance
                      std,
-                     np.sqrt(numvalues * (numvalues - 1)) / (numvalues - 2) * np.sum((values - mean) ** 3) / (numvalues * std ** 3 + eps),  # adjusted Fisher-Pearson coefficient of skewness
+                     np.sqrt(numvalues * (numvalues - 1)) / (numvalues - 2) * np.sum((values - mean) ** 3) / (
+                                 numvalues * std ** 3 + eps),  # adjusted Fisher-Pearson coefficient of skewness
                      np.sum((values - mean) ** 4) / (numvalues * std ** 4 + eps),  # kurtosis
-                     #np.sum(-p * np.log2(p)),  # entropy
+                     # np.sum(-p * np.log2(p)),  # entropy
                      np.sum(p ** 2),  # energy (intensity histogram uniformity)
                      snr,
                      min_,
@@ -303,7 +321,7 @@ class NeighborhoodFeatureExtractor(fltr.Filter):
             for xx in range(x):
                 for yy in range(y):
                     for zz in range(z):
-                        print('x, y, z = ' + str(xx) + ' ' + str(yy) + ' ' + str(zz))
+                        # print('x, y, z = ' + str(xx) + ' ' + str(yy) + ' ' + str(zz))
                         val = self.function(img_arr_padded[zz:zz + z_offset, yy:yy + y_offset, xx:xx + x_offset])
                         img_out_arr[zz, yy, xx] = val
 
