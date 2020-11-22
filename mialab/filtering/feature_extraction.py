@@ -174,10 +174,10 @@ def first_order_texture_features_function(values):
 
     #   array containing indexes of np.values between 10-th and 90-th percentile
 
-    values_p1090 = percentile_subset(np.sort(values), np.percentile(values, 10),
-                                     np.percentile(values, 90))
-    mean_p1090 = np.mean(values_p1090)
-    numvalues_p1090 = len(values_p1090)
+    # values_p1090 = percentile_subset(np.sort(values), np.percentile(values, 10),
+    #                                  np.percentile(values, 90))
+    # mean_p1090 = np.mean(values_p1090)
+    # numvalues_p1090 = len(values_p1090)
 
     return np.array([mean,
                      np.var(values),  # variance

@@ -62,10 +62,12 @@ class FeatureExtractor:
         """
         self.img = img
         self.training = kwargs.get('training', True)
+        self.save_features = kwargs.get('save_features', True)
+        self.use_saved_features = kwargs.get('use_saved_features', False)
         self.coordinates_feature = kwargs.get('coordinates_feature', False)
         self.intensity_feature = kwargs.get('intensity_feature', False)
         self.gradient_intensity_feature = kwargs.get('gradient_intensity_feature', False)
-        self.first_order_feature = kwargs.get('first_order_feature', True)
+        self.first_order_feature = kwargs.get('first_order_feature', False)
         # self.HOG_feature = kwargs.get('HOG_feature', False)
 
 
@@ -78,14 +80,26 @@ class FeatureExtractor:
         """
         # warnings.warn('No features from T2-weighted image extracted.')
 
+        if self.save_features:
+            self.feature_path = os.path.join(self.img.path, 'features')
+            os.makedirs(self.feature_path,  exist_ok=True)
+
         if self.coordinates_feature:
             atlas_coordinates = fltr_feat.AtlasCoordinates()
             self.img.feature_images[FeatureImageTypes.ATLAS_COORD] = \
                 atlas_coordinates.execute(self.img.images[structure.BrainImageTypes.T1w])
+            if self.save_features:
+                sitk.WriteImage(self.img.feature_images[FeatureImageTypes.ATLAS_COORD],
+                                os.path.join(self.feature_path, 'coordinate_feature.nii.gz'))
 
         if self.intensity_feature:
             self.img.feature_images[FeatureImageTypes.T1w_INTENSITY] = self.img.images[structure.BrainImageTypes.T1w]
             self.img.feature_images[FeatureImageTypes.T2w_INTENSITY] = self.img.images[structure.BrainImageTypes.T2w]
+            if self.save_features:
+                sitk.WriteImage(self.img.feature_images[FeatureImageTypes.T1w_INTENSITY],
+                                os.path.join(self.feature_path, 'T1w_intensity_feature.nii.gz'))
+                sitk.WriteImage(self.img.feature_images[FeatureImageTypes.T2w_INTENSITY],
+                                os.path.join(self.feature_path, 'T2w_intensity_feature.nii.gz'))
 
         if self.gradient_intensity_feature:
             # compute gradient magnitude images
@@ -93,6 +107,11 @@ class FeatureExtractor:
                 sitk.GradientMagnitude(self.img.images[structure.BrainImageTypes.T1w])
             self.img.feature_images[FeatureImageTypes.T2w_GRADIENT_INTENSITY] = \
                 sitk.GradientMagnitude(self.img.images[structure.BrainImageTypes.T2w])
+            if self.save_features:
+                sitk.WriteImage(self.img.feature_images[FeatureImageTypes.T1w_GRADIENT_INTENSITY],
+                                os.path.join(self.feature_path, 'T1w_gradient_intensity_feature.nii.gz'))
+                sitk.WriteImage(self.img.feature_images[FeatureImageTypes.T2w_GRADIENT_INTENSITY],
+                                os.path.join(self.feature_path, 'T2w_gradient_intensity_feature.nii.gz'))
 
         if self.first_order_feature:
             # compute first order features
@@ -103,6 +122,11 @@ class FeatureExtractor:
             self.img.feature_images[FeatureImageTypes.T2w_FOF] = \
                 neighborhood_features.execute(self.img.images[structure.BrainImageTypes.T2w],
                                               multiprocessing_features=True)
+            if self.save_features:
+                sitk.WriteImage(self.img.feature_images[FeatureImageTypes.T1w_FOF],
+                                os.path.join(self.feature_path, 'T1w_FOF.nii.gz'))
+                sitk.WriteImage(self.img.feature_images[FeatureImageTypes.T1w_FOF],
+                                os.path.join(self.feature_path, 'T2w_FOF.nii.gz'))
 
         # if self.HOG_feature:
         #     # compute gradient magnitude images
