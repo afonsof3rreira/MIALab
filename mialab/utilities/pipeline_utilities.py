@@ -45,10 +45,10 @@ class FeatureImageTypes(enum.Enum):
     T1w_GRADIENT_INTENSITY = 3
     T2w_INTENSITY = 4
     T2w_GRADIENT_INTENSITY = 5
-    T1w_FOF = 6
-    T2w_FOF = 7
-    # T1w_HOG = 6
-    # T2w_HOG = 7
+    # T1w_FOF = 6
+    # T2w_FOF = 7
+    # T1w_HOG = 8
+    # T2w_HOG = 9
 
 
 class FeatureExtractor:
@@ -80,61 +80,54 @@ class FeatureExtractor:
         """
         # warnings.warn('No features from T2-weighted image extracted.')
 
+        self.feature_path = os.path.join(self.img.path, 'features')
+
+        if not self.use_saved_features:
+
+            if self.coordinates_feature:
+                atlas_coordinates = fltr_feat.AtlasCoordinates()
+                self.img.feature_images[FeatureImageTypes.ATLAS_COORD] = \
+                    atlas_coordinates.execute(self.img.images[structure.BrainImageTypes.T1w])
+
+            if self.intensity_feature:
+                self.img.feature_images[FeatureImageTypes.T1w_INTENSITY] = self.img.images[structure.BrainImageTypes.T1w]
+                self.img.feature_images[FeatureImageTypes.T2w_INTENSITY] = self.img.images[structure.BrainImageTypes.T2w]
+
+            if self.gradient_intensity_feature:
+                # compute gradient magnitude images
+                self.img.feature_images[FeatureImageTypes.T1w_GRADIENT_INTENSITY] = \
+                    sitk.GradientMagnitude(self.img.images[structure.BrainImageTypes.T1w])
+                self.img.feature_images[FeatureImageTypes.T2w_GRADIENT_INTENSITY] = \
+                    sitk.GradientMagnitude(self.img.images[structure.BrainImageTypes.T2w])
+
+            if self.first_order_feature:
+                # compute first order features
+                neighborhood_features = fltr_feat.NeighborhoodFeatureExtractor()
+                self.img.feature_images[FeatureImageTypes.T1w_FOF] = \
+                    neighborhood_features.execute(self.img.images[structure.BrainImageTypes.T1w],
+                                                  multiprocessing_features=True)
+                self.img.feature_images[FeatureImageTypes.T2w_FOF] = \
+                    neighborhood_features.execute(self.img.images[structure.BrainImageTypes.T2w],
+                                                  multiprocessing_features=True)
+
+            # if self.HOG_feature:
+            #     # compute gradient magnitude images
+            #     print(self.img.images[structure.BrainImageTypes.T1w].GetSize())
+            #     self.img.feature_images[FeatureImageTypes.T1w_HOG] = \
+            #         sitk.GetImageFromArray(feature.hog(sitk.GetArrayFromImage(self.img.images[structure.BrainImageTypes.T1w])))
+            #     self.img.feature_images[FeatureImageTypes.T2w_HOG] = \
+            #         sitk.GetImageFromArray(feature.hog(sitk.GetArrayFromImage(self.img.images[structure.BrainImageTypes.T2w])))
+
+        else:
+            for _, name in enumerate(FeatureImageTypes):
+                self.img.feature_images[name] = sitk.ReadImage(os.path.join(self.feature_path, name.name + '.nii.gz'))
+
+
         if self.save_features:
-            self.feature_path = os.path.join(self.img.path, 'features')
-            os.makedirs(self.feature_path,  exist_ok=True)
+            os.makedirs(self.feature_path, exist_ok=True)
+            for _, name in enumerate(FeatureImageTypes):
+                sitk.WriteImage(self.img.feature_images[name], os.path.join(self.feature_path, name.name + '.nii.gz'))
 
-        if self.coordinates_feature:
-            atlas_coordinates = fltr_feat.AtlasCoordinates()
-            self.img.feature_images[FeatureImageTypes.ATLAS_COORD] = \
-                atlas_coordinates.execute(self.img.images[structure.BrainImageTypes.T1w])
-            if self.save_features:
-                sitk.WriteImage(self.img.feature_images[FeatureImageTypes.ATLAS_COORD],
-                                os.path.join(self.feature_path, 'coordinate_feature.nii.gz'))
-
-        if self.intensity_feature:
-            self.img.feature_images[FeatureImageTypes.T1w_INTENSITY] = self.img.images[structure.BrainImageTypes.T1w]
-            self.img.feature_images[FeatureImageTypes.T2w_INTENSITY] = self.img.images[structure.BrainImageTypes.T2w]
-            if self.save_features:
-                sitk.WriteImage(self.img.feature_images[FeatureImageTypes.T1w_INTENSITY],
-                                os.path.join(self.feature_path, 'T1w_intensity_feature.nii.gz'))
-                sitk.WriteImage(self.img.feature_images[FeatureImageTypes.T2w_INTENSITY],
-                                os.path.join(self.feature_path, 'T2w_intensity_feature.nii.gz'))
-
-        if self.gradient_intensity_feature:
-            # compute gradient magnitude images
-            self.img.feature_images[FeatureImageTypes.T1w_GRADIENT_INTENSITY] = \
-                sitk.GradientMagnitude(self.img.images[structure.BrainImageTypes.T1w])
-            self.img.feature_images[FeatureImageTypes.T2w_GRADIENT_INTENSITY] = \
-                sitk.GradientMagnitude(self.img.images[structure.BrainImageTypes.T2w])
-            if self.save_features:
-                sitk.WriteImage(self.img.feature_images[FeatureImageTypes.T1w_GRADIENT_INTENSITY],
-                                os.path.join(self.feature_path, 'T1w_gradient_intensity_feature.nii.gz'))
-                sitk.WriteImage(self.img.feature_images[FeatureImageTypes.T2w_GRADIENT_INTENSITY],
-                                os.path.join(self.feature_path, 'T2w_gradient_intensity_feature.nii.gz'))
-
-        if self.first_order_feature:
-            # compute first order features
-            neighborhood_features = fltr_feat.NeighborhoodFeatureExtractor()
-            self.img.feature_images[FeatureImageTypes.T1w_FOF] = \
-                neighborhood_features.execute(self.img.images[structure.BrainImageTypes.T1w],
-                                              multiprocessing_features=True)
-            self.img.feature_images[FeatureImageTypes.T2w_FOF] = \
-                neighborhood_features.execute(self.img.images[structure.BrainImageTypes.T2w],
-                                              multiprocessing_features=True)
-            if self.save_features:
-                sitk.WriteImage(self.img.feature_images[FeatureImageTypes.T1w_FOF],
-                                os.path.join(self.feature_path, 'T1w_FOF.nii.gz'))
-                sitk.WriteImage(self.img.feature_images[FeatureImageTypes.T1w_FOF],
-                                os.path.join(self.feature_path, 'T2w_FOF.nii.gz'))
-
-        # if self.HOG_feature:
-        #     # compute gradient magnitude images
-        #     print(self.img.images[structure.BrainImageTypes.T1w].GetSize())
-        #     self.img.feature_images[FeatureImageTypes.T1w_HOG] = \
-        #         sitk.GetImageFromArray(feature.hog(sitk.GetArrayFromImage(self.img.images[structure.BrainImageTypes.T1w])))
-        #     self.img.feature_images[FeatureImageTypes.T2w_HOG] = \
-        #         sitk.GetImageFromArray(feature.hog(sitk.GetArrayFromImage(self.img.images[structure.BrainImageTypes.T2w])))
 
         self._generate_feature_matrix()
 

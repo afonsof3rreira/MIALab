@@ -69,7 +69,7 @@ def main(result_dir: str, data_atlas_dir: str, data_train_dir: str, data_test_di
                           'gradient_intensity_feature': True,
                           'first_order_feature': True,
                           'save_features': True,
-                          'use_saved_features': True
+                          'use_saved_features': False
                           # 'HOG_feature': False
                           }
 
