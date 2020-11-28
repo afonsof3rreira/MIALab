@@ -14,6 +14,7 @@ from skimage import feature
 
 import mialab.data.structure as structure
 import mialab.filtering.feature_extraction as fltr_feat
+import mialab.filtering.hog_extractor as fltr_hog
 import mialab.filtering.postprocessing as fltr_postp
 import mialab.filtering.preprocessing as fltr_prep
 import mialab.utilities.multi_processor as mproc
@@ -45,10 +46,10 @@ class FeatureImageTypes(enum.Enum):
     T1w_GRADIENT_INTENSITY = 3
     T2w_INTENSITY = 4
     T2w_GRADIENT_INTENSITY = 5
-    # T1w_FOF = 6
-    # T2w_FOF = 7
-    # T1w_HOG = 8
-    # T2w_HOG = 9
+    T1w_FOF = 6
+    T2w_FOF = 7
+    T1w_HOG = 8
+    T2w_HOG = 9
 
 
 class FeatureExtractor:
@@ -68,9 +69,7 @@ class FeatureExtractor:
         self.intensity_feature = kwargs.get('intensity_feature', False)
         self.gradient_intensity_feature = kwargs.get('gradient_intensity_feature', False)
         self.first_order_feature = kwargs.get('first_order_feature', False)
-        # self.HOG_feature = kwargs.get('HOG_feature', False)
-
-
+        self.HOG_feature = kwargs.get('HOG_feature', False)
 
     def execute(self) -> structure.BrainImage:
         """Extracts features from an image.
@@ -78,8 +77,8 @@ class FeatureExtractor:
         Returns:
             structure.BrainImage: The image with extracted features.
         """
-        # warnings.warn('No features from T2-weighted image extracted.')
 
+        # dir 'features' is a sub-dir of a given image, containing image-features
         self.feature_path = os.path.join(self.img.path, 'features')
 
         if not self.use_saved_features:
@@ -90,8 +89,10 @@ class FeatureExtractor:
                     atlas_coordinates.execute(self.img.images[structure.BrainImageTypes.T1w])
 
             if self.intensity_feature:
-                self.img.feature_images[FeatureImageTypes.T1w_INTENSITY] = self.img.images[structure.BrainImageTypes.T1w]
-                self.img.feature_images[FeatureImageTypes.T2w_INTENSITY] = self.img.images[structure.BrainImageTypes.T2w]
+                self.img.feature_images[FeatureImageTypes.T1w_INTENSITY] = self.img.images[
+                    structure.BrainImageTypes.T1w]
+                self.img.feature_images[FeatureImageTypes.T2w_INTENSITY] = self.img.images[
+                    structure.BrainImageTypes.T2w]
 
             if self.gradient_intensity_feature:
                 # compute gradient magnitude images
@@ -110,24 +111,25 @@ class FeatureExtractor:
                     neighborhood_features.execute(self.img.images[structure.BrainImageTypes.T2w],
                                                   multiprocessing_features=True)
 
-            # if self.HOG_feature:
-            #     # compute gradient magnitude images
-            #     print(self.img.images[structure.BrainImageTypes.T1w].GetSize())
-            #     self.img.feature_images[FeatureImageTypes.T1w_HOG] = \
-            #         sitk.GetImageFromArray(feature.hog(sitk.GetArrayFromImage(self.img.images[structure.BrainImageTypes.T1w])))
-            #     self.img.feature_images[FeatureImageTypes.T2w_HOG] = \
-            #         sitk.GetImageFromArray(feature.hog(sitk.GetArrayFromImage(self.img.images[structure.BrainImageTypes.T2w])))
+            if self.HOG_feature:
+                # compute HOG features
+                hog_features = fltr_hog.HOG_extractor()
+                self.img.feature_images[FeatureImageTypes.T1w_HOG] = \
+                    hog_features.execute(self.img.images[structure.BrainImageTypes.T1w], multiprocessing=True)
+
+                self.img.feature_images[FeatureImageTypes.T2w_HOG] = \
+                    hog_features.execute(self.img.images[structure.BrainImageTypes.T2w], multiprocessing=True)
 
         else:
             for _, name in enumerate(FeatureImageTypes):
                 self.img.feature_images[name] = sitk.ReadImage(os.path.join(self.feature_path, name.name + '.nii.gz'))
 
-
         if self.save_features:
             os.makedirs(self.feature_path, exist_ok=True)
             for _, name in enumerate(FeatureImageTypes):
+                print(type(self.img.feature_images[name]))
+                print(name)
                 sitk.WriteImage(self.img.feature_images[name], os.path.join(self.feature_path, name.name + '.nii.gz'))
-
 
         self._generate_feature_matrix()
 
@@ -294,8 +296,6 @@ def pre_process(id_: str, paths: dict, **kwargs) -> structure.BrainImage:
 
     # extract the features
     feature_extractor = FeatureExtractor(img, **kwargs)
-
-
 
     img = feature_extractor.execute()
 

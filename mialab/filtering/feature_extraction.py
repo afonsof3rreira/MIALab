@@ -71,23 +71,6 @@ class AtlasCoordinates(fltr.Filter):
             .format(self=self)
 
 
-# Code adapted from https://www.learnopencv.com/histogram-of-oriented-gradients/
-# --> article for more info: https://www.hindawi.com/journals/bmri/2017/3956363/
-
-def hog_features(values):
-    """Calculates the HOG-features
-
-    Args:
-        values (np.array): THe values to calculate the HOG-features from.
-
-    Returns:
-        np.array: A vector containing the HOG-features
-    """
-    # Here comes your code
-    return 1
-
-
-
 def percentile_subset(array, min, max):
     """ Outputs a subset of image array with gray levels in between, or equal to the "min"-th and "max"-th percentile
 
@@ -223,18 +206,18 @@ def first_order_texture_features_function(values):
 def firstOFeature_slice(padded_img, out_img, zz, z_offset, y_offset, x_offset):
     """Calculates 1st-order features for the zz-th 2-D "slice" of the whole brain image
 
-            Args:
-                padded_img (np.array): padded image from which features are extracted
-                out_img (np.array): original image with shape (z, y, x, NP)
-                    where NP = number of components per pixel
-                zz (int): zz fixed axis value for which 2-D slice is obtained
-                z_offset (int): z-axis offset
-                y_offset (int): y-axis offset
-                x_offset(int) : x-axis offset
+    Args:
+        padded_img (np.array): padded image from which features are extracted
+        out_img (np.array): original image with shape (z, y, x, NP)
+            where NP = number of components per pixel
+        zz (int): zz fixed axis value for which 2-D slice is obtained
+        z_offset (int): z-axis offset
+        y_offset (int): y-axis offset
+        x_offset(int) : x-axis offset
 
-            Returns:
-                List[np.array, int]: A List element containing the zz-th feature-extracted-slice and the zz value
-            """
+    Returns:
+        List[np.array, int]: A List element containing the zz-th feature-extracted-slice and the zz value
+    """
 
     # np.shape(out_img) = (z, y, x, NP)
     # sub_dim: A tuple with dimensions (y, x, NP) where NP = number of components per pixel

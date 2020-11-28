@@ -66,11 +66,11 @@ def main(result_dir: str, data_atlas_dir: str, data_train_dir: str, data_test_di
                           'registration_pre': True,
                           'coordinates_feature': True,
                           'intensity_feature': True,
-                          'gradient_intensity_feature': True,
-                          'first_order_feature': True,
+                          'gradient_intensity_feature': False,
+                          'first_order_feature': False,
                           'save_features': True,
                           'use_saved_features': False
-                          # 'HOG_feature': False
+                          'HOG_feature': False
                           }
 
     # TODO: comment/uncomment 1st-O. features on feature_extraction.py to disable/enable
