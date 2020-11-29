@@ -116,7 +116,6 @@ class FeatureExtractor:
                 hog_features = fltr_hog.HOG_extractor()
                 self.img.feature_images[FeatureImageTypes.T1w_HOG] = \
                     hog_features.execute(self.img.images[structure.BrainImageTypes.T1w], multiprocessing=True)
-
                 self.img.feature_images[FeatureImageTypes.T2w_HOG] = \
                     hog_features.execute(self.img.images[structure.BrainImageTypes.T2w], multiprocessing=True)
 
