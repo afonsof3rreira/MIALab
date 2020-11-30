@@ -8,6 +8,7 @@ import os
 import sys
 import timeit
 import warnings
+import json
 
 import SimpleITK as sitk
 import sklearn.ensemble as sk_ensemble
@@ -35,7 +36,7 @@ LOADING_KEYS = [structure.BrainImageTypes.T1w,
 
 # np.random.seed(42)
 
-def main(result_dir: str, data_atlas_dir: str, data_train_dir: str, data_test_dir: str):
+def main(result_dir: str, data_atlas_dir: str, data_train_dir: str, data_test_dir: str, parameters: str):
     """Brain tissue segmentation using decision forests.
 
     The main routine executes the medical image analysis pipeline:
@@ -61,21 +62,69 @@ def main(result_dir: str, data_atlas_dir: str, data_train_dir: str, data_test_di
                                           futil.BrainImageFilePathGenerator(),
                                           futil.DataDirectoryFilter())
 
+    #fof_parameters = json.
+
+    fof_parameters = {'10Percentile': True,
+                        '90Percentile': True,
+                        'Energy': True,
+                        'Entropy': True,
+                        'InterquartileRange': True,
+                        'Kurtosis': True,
+                        'Maximum': True,
+                        'MeanAbsoluteDeviation': True,
+                        'Mean': True,
+                        'Median': True,
+                        'Minimum': True,
+                        'Range': True,
+                        'RobustMeanAbsoluteDeviation': True,
+                        'RootMeanSquared': True,
+                        'Skewness': True,
+                        'TotalEnergy': True,
+                        'Uniformity': True,
+                        'Variance': True}
+
+    glcm_parameters = {'Autocorrelation': True,
+                        'ClusterProminence': True,
+                        'ClusterShade': True,
+                        'ClusterTendency': True,
+                        'Contrast': True,
+                        'Correlation': True,
+                        'DifferenceAverage': True,
+                        'DifferenceEntropy': True,
+                        'DifferenceVariance': True,
+                        'Id': True,
+                        'Idm': True,
+                        'Idmn': True,
+                        'Idn': True,
+                        'Imc1': True,
+                        'Imc2': True,
+                        'InverseVariance': True,
+                        'JointAverage': True,
+                        'JointEnergy': True,
+                        'JointEntropy': True,
+                        'MCC': True,
+                        'MaximumProbability': True,
+                        'SumAverage': True,
+                        'SumEntropy': True,
+                        'SumSquares': True}
+
     pre_process_params = {'skullstrip_pre': True,
                           'normalization_pre': True,
                           'registration_pre': True,
+                          'save_features': True,
                           'coordinates_feature': True,
                           'intensity_feature': True,
-                          'gradient_intensity_feature': False,
-                          'first_order_feature': False,
-                          'save_features': True,
-                          'use_saved_features': False
-                          'HOG_feature': False
+                          'gradient_intensity_feature': True,
+                          'first_order_feature': True,
+                          'first_order_feature_parameters': fof_parameters,
+                          'HOG_feature': True,
+                          'GLCM_features': True,
+                          'GLCM_features_parameters': glcm_parameters
                           }
 
     # TODO: comment/uncomment 1st-O. features on feature_extraction.py to disable/enable
 
-    fo_features_list = fext.selected_features().getSelectedFeatures()
+    #fo_features_list = fext.selected_features().getSelectedFeatures()
 
     feature_dictionary = dict()
 
@@ -87,7 +136,9 @@ def main(result_dir: str, data_atlas_dir: str, data_train_dir: str, data_test_di
         if key == 'gradient_intensity_feature' and val:
             feature_dictionary.update({3: key})
         if key == 'first_order_feature' and val:
-            feature_dictionary.update({4: fo_features_list})
+            feature_dictionary.update({4: list(fof_parameters.keys())})
+        if key == 'GLCM_features' and val:
+            feature_dictionary.update({5: list(glcm_parameters.keys())})
 
     # load images for training and pre-process
     images = putil.pre_process_batch(crawler.data, pre_process_params, multi_process=False)
@@ -98,7 +149,7 @@ def main(result_dir: str, data_atlas_dir: str, data_train_dir: str, data_test_di
 
     # warnings.warn('Random forest parameters not properly set.')
     forest = sk_ensemble.RandomForestClassifier(max_features=images[0].feature_matrix[0].shape[1],
-                                                n_estimators=10,  # 100
+                                                n_estimators=100,  # 100
                                                 max_depth=10)  # 10
 
     start_time = timeit.default_timer()
@@ -216,5 +267,12 @@ if __name__ == "__main__":
         help='Directory with testing data.'
     )
 
+    parser.add_argument(
+        '--parameters',
+        type=str,
+        default=os.path.normpath(os.path.join(script_dir, '../data/')),
+        help='Path to .json containing parameters'
+    )
+
     args = parser.parse_args()
-    main(args.result_dir, args.data_atlas_dir, args.data_train_dir, args.data_test_dir)
+    main(args.result_dir, args.data_atlas_dir, args.data_train_dir, args.data_test_dir, args.parameters)

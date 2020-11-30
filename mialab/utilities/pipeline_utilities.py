@@ -15,6 +15,7 @@ from skimage import feature
 import mialab.data.structure as structure
 import mialab.filtering.feature_extraction as fltr_feat
 import mialab.filtering.hog_extractor as fltr_hog
+from radiomics import glcm, firstorder
 import mialab.filtering.postprocessing as fltr_postp
 import mialab.filtering.preprocessing as fltr_prep
 import mialab.utilities.multi_processor as mproc
@@ -50,6 +51,8 @@ class FeatureImageTypes(enum.Enum):
     T2w_FOF = 7
     T1w_HOG = 8
     T2w_HOG = 9
+    T1w_GLCM = 10
+    T2w_GLCM = 11
 
 
 class FeatureExtractor:
@@ -64,12 +67,14 @@ class FeatureExtractor:
         self.img = img
         self.training = kwargs.get('training', True)
         self.save_features = kwargs.get('save_features', True)
-        self.use_saved_features = kwargs.get('use_saved_features', False)
         self.coordinates_feature = kwargs.get('coordinates_feature', False)
         self.intensity_feature = kwargs.get('intensity_feature', False)
         self.gradient_intensity_feature = kwargs.get('gradient_intensity_feature', False)
         self.first_order_feature = kwargs.get('first_order_feature', False)
+        self.first_order_feature_parameters = kwargs.get('first_order_feature_parameters', {})
         self.HOG_feature = kwargs.get('HOG_feature', False)
+        self.GLCM_features = kwargs.get('GLCM_features', False)
+        self.GLCM_features_parameters = kwargs.get('GLCM_features_parameters', {})
 
     def execute(self) -> structure.BrainImage:
         """Extracts features from an image.
@@ -81,7 +86,7 @@ class FeatureExtractor:
         # dir 'features' is a sub-dir of a given image, containing image-features
         self.feature_path = os.path.join(self.img.path, 'features')
 
-        if not self.use_saved_features:
+        if self.save_features:
 
             if self.coordinates_feature:
                 atlas_coordinates = fltr_feat.AtlasCoordinates()
@@ -103,33 +108,69 @@ class FeatureExtractor:
 
             if self.first_order_feature:
                 # compute first order features
-                neighborhood_features = fltr_feat.NeighborhoodFeatureExtractor()
-                self.img.feature_images[FeatureImageTypes.T1w_FOF] = \
-                    neighborhood_features.execute(self.img.images[structure.BrainImageTypes.T1w],
-                                                  multiprocessing_features=True)
-                self.img.feature_images[FeatureImageTypes.T2w_FOF] = \
-                    neighborhood_features.execute(self.img.images[structure.BrainImageTypes.T2w],
-                                                  multiprocessing_features=True)
+                fof_T1w_features = firstorder.RadiomicsFirstOrder(self.img.images[structure.BrainImageTypes.T1w],
+                                                      self.img.images[structure.BrainImageTypes.BrainMask],
+                                                      voxelBased=True)
+                fof_T1w_features.enabledFeatures = self.first_order_feature_parameters
+                self.img.feature_images[FeatureImageTypes.T1w_FOF] = fof_T1w_features.execute()
+                self.img.feature_images[FeatureImageTypes.T1w_FOF] = sitk.Compose(
+                    list(self.img.feature_images[FeatureImageTypes.T1w_FOF].values()))
+                self.img.feature_images[FeatureImageTypes.T1w_FOF].CopyInformation(
+                    self.img.images[structure.BrainImageTypes.T1w])
+                fof_T2w_features = firstorder.RadiomicsFirstOrder(self.img.images[structure.BrainImageTypes.T2w],
+                                                      self.img.images[structure.BrainImageTypes.BrainMask],
+                                                      voxelBased=True)
+                fof_T2w_features.enabledFeatures = self.first_order_feature_parameters
+                self.img.feature_images[FeatureImageTypes.T2w_FOF] = fof_T2w_features.execute()
+                self.img.feature_images[FeatureImageTypes.T2w_FOF] = sitk.Compose(
+                    list(self.img.feature_images[FeatureImageTypes.T2w_FOF].values()))
+                self.img.feature_images[FeatureImageTypes.T2w_FOF].CopyInformation(
+                    self.img.images[structure.BrainImageTypes.T2w])
+
+            if self.GLCM_features:
+                # compute GLCM features
+                glcmT1w_features = glcm.RadiomicsGLCM(self.img.images[structure.BrainImageTypes.T1w],
+                                                      self.img.images[structure.BrainImageTypes.BrainMask],
+                                                      voxelBased=True)
+                glcmT1w_features.enabledFeatures = self.GLCM_features_parameters
+                self.img.feature_images[FeatureImageTypes.T1w_GLCM] = glcmT1w_features.execute()
+                self.img.feature_images[FeatureImageTypes.T1w_GLCM] = sitk.Compose(
+                    list(self.img.feature_images[FeatureImageTypes.T1w_GLCM].values()))
+                self.img.feature_images[FeatureImageTypes.T1w_GLCM].CopyInformation(
+                    self.img.images[structure.BrainImageTypes.T1w])
+                glcmT2w_features = glcm.RadiomicsGLCM(self.img.images[structure.BrainImageTypes.T2w],
+                                                      self.img.images[structure.BrainImageTypes.BrainMask],
+                                                      voxelBased=True)
+                glcmT2w_features.enabledFeatures = self.GLCM_features_parameters
+                self.img.feature_images[FeatureImageTypes.T2w_GLCM] = glcmT2w_features.execute()
+                self.img.feature_images[FeatureImageTypes.T2w_GLCM] = sitk.Compose(
+                    list(self.img.feature_images[FeatureImageTypes.T2w_GLCM].values()))
+                self.img.feature_images[FeatureImageTypes.T2w_GLCM].CopyInformation(
+                    self.img.images[structure.BrainImageTypes.T2w])
 
             if self.HOG_feature:
                 # compute HOG features
                 hog_features = fltr_hog.HOG_extractor()
                 self.img.feature_images[FeatureImageTypes.T1w_HOG] = \
                     hog_features.execute(self.img.images[structure.BrainImageTypes.T1w], multiprocessing=True)
-
                 self.img.feature_images[FeatureImageTypes.T2w_HOG] = \
                     hog_features.execute(self.img.images[structure.BrainImageTypes.T2w], multiprocessing=True)
 
         else:
             for _, name in enumerate(FeatureImageTypes):
-                self.img.feature_images[name] = sitk.ReadImage(os.path.join(self.feature_path, name.name + '.nii.gz'))
+                try:
+                    self.img.feature_images[name] = \
+                        sitk.ReadImage(os.path.join(self.feature_path, name.name + '.nii.gz'))
+                except RuntimeError:
+                    pass
 
         if self.save_features:
             os.makedirs(self.feature_path, exist_ok=True)
             for _, name in enumerate(FeatureImageTypes):
-                print(type(self.img.feature_images[name]))
-                print(name)
-                sitk.WriteImage(self.img.feature_images[name], os.path.join(self.feature_path, name.name + '.nii.gz'))
+                try:
+                    sitk.WriteImage(self.img.feature_images[name], os.path.join(self.feature_path, name.name + '.nii.gz'))
+                except KeyError:
+                    pass
 
         self._generate_feature_matrix()
 
