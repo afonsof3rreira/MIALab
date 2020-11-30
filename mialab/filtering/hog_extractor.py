@@ -166,7 +166,7 @@ class HOG_extractor(fltr.Filter):
         img_out = sitk.GetImageFromArray(img_out_arr)
         img_out.CopyInformation(image)
 
-        return image
+        return img_out
 
     def neighborhood_hog_extractor(self, z, y, x):
         """Calculates the HOG-features for a 3D block in the image.
