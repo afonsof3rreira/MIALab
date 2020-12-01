@@ -117,7 +117,7 @@ def main(result_dir: str, data_atlas_dir: str, data_train_dir: str, data_test_di
                           'gradient_intensity_feature': True,
                           'first_order_feature': True,
                           'first_order_feature_parameters': fof_parameters,
-                          'HOG_feature': True,
+                          'HOG_feature': False,
                           'GLCM_features': True,
                           'GLCM_features_parameters': glcm_parameters
                           }
