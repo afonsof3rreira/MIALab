@@ -126,40 +126,40 @@ def main(result_dir: str, data_atlas_dir: str, data_train_dir: str, data_test_di
 
     #fo_features_list = fext.selected_features().getSelectedFeatures()
 
-    feature_dictionary = dict()
-
-    for key, val in pre_process_params.items():
-        if key == 'coordinates_feature' and val:
-            feature_dictionary.update({1: key})
-        if key == 'intensity_feature' and val:
-            feature_dictionary.update({2: key})
-        if key == 'gradient_intensity_feature' and val:
-            feature_dictionary.update({3: key})
-        if key == 'first_order_feature' and val:
-            feature_dictionary.update({4: list(fof_parameters.keys())})
-        if key == 'GLCM_features' and val:
-            feature_dictionary.update({5: list(glcm_parameters.keys())})
-
-    # load images for training and pre-process
-    images = putil.pre_process_batch(crawler.data, pre_process_params, multi_process=False)
-
-    # generate feature matrix and label vector
-    data_train = np.concatenate([img.feature_matrix[0] for img in images])
-    labels_train = np.concatenate([img.feature_matrix[1] for img in images]).squeeze()
-
-    # warnings.warn('Random forest parameters not properly set.')
-    forest = sk_ensemble.RandomForestClassifier(max_features=images[0].feature_matrix[0].shape[1],
-                                                n_estimators=100,  # 100
-                                                max_depth=10)  # 10
-
-    start_time = timeit.default_timer()
-    forest.fit(data_train, labels_train)
-    print(' Time elapsed:', timeit.default_timer() - start_time, 's')
-
-    # create a result directory with timestamp
-    t = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
-    result_dir = os.path.join(result_dir, t)
-    os.makedirs(result_dir, exist_ok=True)
+    # feature_dictionary = dict()
+    #
+    # for key, val in pre_process_params.items():
+    #     if key == 'coordinates_feature' and val:
+    #         feature_dictionary.update({1: key})
+    #     if key == 'intensity_feature' and val:
+    #         feature_dictionary.update({2: key})
+    #     if key == 'gradient_intensity_feature' and val:
+    #         feature_dictionary.update({3: key})
+    #     if key == 'first_order_feature' and val:
+    #         feature_dictionary.update({4: list(fof_parameters.keys())})
+    #     if key == 'GLCM_features' and val:
+    #         feature_dictionary.update({5: list(glcm_parameters.keys())})
+    #
+    # # load images for training and pre-process
+    # images = putil.pre_process_batch(crawler.data, pre_process_params, multi_process=False)
+    #
+    # # generate feature matrix and label vector
+    # data_train = np.concatenate([img.feature_matrix[0] for img in images])
+    # labels_train = np.concatenate([img.feature_matrix[1] for img in images]).squeeze()
+    #
+    # # warnings.warn('Random forest parameters not properly set.')
+    # forest = sk_ensemble.RandomForestClassifier(max_features=images[0].feature_matrix[0].shape[1],
+    #                                             n_estimators=100,  # 100
+    #                                             max_depth=10)  # 10
+    #
+    # start_time = timeit.default_timer()
+    # forest.fit(data_train, labels_train)
+    # print(' Time elapsed:', timeit.default_timer() - start_time, 's')
+    #
+    # # create a result directory with timestamp
+    # t = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
+    # result_dir = os.path.join(result_dir, t)
+    # os.makedirs(result_dir, exist_ok=True)
 
     print('-' * 5, 'Testing...')
 
