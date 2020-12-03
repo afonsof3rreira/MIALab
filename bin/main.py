@@ -36,7 +36,7 @@ LOADING_KEYS = [structure.BrainImageTypes.T1w,
 
 # np.random.seed(42)
 
-def main(result_dir: str, data_atlas_dir: str, data_train_dir: str, data_test_dir: str, parameters: str):
+def main(result_dir: str, data_atlas_dir: str, data_train_dir: str, data_test_dir: str, parameters_file: str):
     """Brain tissue segmentation using decision forests.
 
     The main routine executes the medical image analysis pipeline:
@@ -61,8 +61,6 @@ def main(result_dir: str, data_atlas_dir: str, data_train_dir: str, data_test_di
                                           LOADING_KEYS,
                                           futil.BrainImageFilePathGenerator(),
                                           futil.DataDirectoryFilter())
-
-    #fof_parameters = json.
 
     fof_parameters = {'10Percentile': True,
                         '90Percentile': True,
@@ -119,9 +117,15 @@ def main(result_dir: str, data_atlas_dir: str, data_train_dir: str, data_test_di
                           'first_order_feature_parameters': fof_parameters,
                           'HOG_feature': False,
                           'GLCM_features': True,
-                          'GLCM_features_parameters': glcm_parameters
+                          'GLCM_features_parameters': glcm_parameters,
+                          'n_estimators': 100,
+                          'max_depth': 10,
+                          'experiment_name': 'default'
                           }
 
+    parameters = json.load(open(parameters_file, 'r'))
+    if bool(parameters):
+        pre_process_params = parameters
 
     feature_dictionary = dict()
 
@@ -146,13 +150,13 @@ def main(result_dir: str, data_atlas_dir: str, data_train_dir: str, data_test_di
 
     # warnings.warn('Random forest parameters not properly set.')
     forest = sk_ensemble.RandomForestClassifier(max_features=images[0].feature_matrix[0].shape[1],
-                                                n_estimators=100,  # 100
-                                                max_depth=10)  # 10
+                                                n_estimators=pre_process_params['n_estimators'],  # 100
+                                                max_depth=pre_process_params['max_depth'])  # 10
 
     # Debugging
 
     nan_data_idx = np.argwhere(np.isnan(data_train))
-    data_train.dump('data_train.npy')
+    np.savez('data_train.npz', data_train)
     np.save('data_nan.npy', nan_data_idx)
 
 
@@ -161,8 +165,7 @@ def main(result_dir: str, data_atlas_dir: str, data_train_dir: str, data_test_di
     print(' Time elapsed:', timeit.default_timer() - start_time, 's')
 
     # create a result directory with timestamp
-    t = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
-    result_dir = os.path.join(result_dir, 'test_trial')
+    result_dir = os.path.join(result_dir, pre_process_params['experiment_name'])
     os.makedirs(result_dir, exist_ok=True)
 
     print('-' * 5, 'Testing...')
@@ -272,11 +275,11 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
-        '--parameters',
+        '--parameters_file',
         type=str,
-        default=os.path.normpath(os.path.join(script_dir, '../data/')),
+        default=os.path.normpath(os.path.join(script_dir, '../data/default_params.json')),
         help='Path to .json containing parameters'
     )
 
     args = parser.parse_args()
-    main(args.result_dir, args.data_atlas_dir, args.data_train_dir, args.data_test_dir, args.parameters)
+    main(args.result_dir, args.data_atlas_dir, args.data_train_dir, args.data_test_dir, args.parameters_file)
