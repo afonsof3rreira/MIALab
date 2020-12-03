@@ -149,6 +149,14 @@ def main(result_dir: str, data_atlas_dir: str, data_train_dir: str, data_test_di
                                                 n_estimators=100,  # 100
                                                 max_depth=10)  # 10
 
+    # Debugging
+
+    nan_data_idx = np.argwhere(np.isnan(data_train))
+    nan_labels_idx = np.argwhere(np.isnan(labels_train))
+    np.save('data_nan.npy', nan_data_idx)
+    np.save('labels_nan.npy', nan_labels_idx)
+
+
     start_time = timeit.default_timer()
     forest.fit(data_train, labels_train)
     print(' Time elapsed:', timeit.default_timer() - start_time, 's')
@@ -198,7 +206,7 @@ def main(result_dir: str, data_atlas_dir: str, data_train_dir: str, data_test_di
     # post-process segmentation and evaluate with post-processing
     post_process_params = {'simple_post': True}
     images_post_processed = putil.post_process_batch(images_test, images_prediction, images_probabilities,
-                                                     post_process_params, multi_process=True)
+                                                     post_process_params, multi_process=False)
 
     for i, img in enumerate(images_test):
         evaluator.evaluate(images_post_processed[i], img.images[structure.BrainImageTypes.GroundTruth],
