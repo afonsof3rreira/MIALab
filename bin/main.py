@@ -152,9 +152,8 @@ def main(result_dir: str, data_atlas_dir: str, data_train_dir: str, data_test_di
     # Debugging
 
     nan_data_idx = np.argwhere(np.isnan(data_train))
-    nan_labels_idx = np.argwhere(np.isnan(labels_train))
+    data_train.dump('data_train.npy')
     np.save('data_nan.npy', nan_data_idx)
-    np.save('labels_nan.npy', nan_labels_idx)
 
 
     start_time = timeit.default_timer()
