@@ -160,7 +160,7 @@ class FeatureExtractor:
             for _, name in enumerate(FeatureImageTypes):
                 try:
                     self.img.feature_images[name] = \
-                        sitk.ReadImage(os.path.join(self.feature_path, name.name + '.nii.gz'))
+                        sitk.ReadImage(os.path.join(self.feature_path, name.name + '.nii.gz'), sitk.sitkFloat32)
                 except RuntimeError:
                     pass
 
