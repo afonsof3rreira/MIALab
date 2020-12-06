@@ -1,4 +1,4 @@
-from bin.multiple_boxplots_test import main
+from bin.multiple_boxplots import main
 import numpy as np
 
 # method 1 directory, method 2 directory, output directory

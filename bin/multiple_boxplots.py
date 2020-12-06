@@ -132,6 +132,7 @@ def boxplot1(file_path: str, data: dict, title: str, used_metric: str, x_label: 
     plt.close()
 
 
+
 def format_data(data, label: str, metric: str):
     return data[data['LABEL'] == label][metric].values
 
