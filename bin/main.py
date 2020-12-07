@@ -50,7 +50,7 @@ def main(result_dir: str, data_atlas_dir: str, data_train_dir: str, data_test_di
         - Post-processing of the segmentation
         - Evaluation of the segmentation
     """
-
+    start_main = timeit.default_timer()
     # load atlas images
     putil.load_atlas_images(data_atlas_dir)
 
@@ -63,48 +63,48 @@ def main(result_dir: str, data_atlas_dir: str, data_train_dir: str, data_test_di
                                           futil.DataDirectoryFilter())
 
     fof_parameters = {'10Percentile': True,
-                        '90Percentile': True,
-                        'Energy': True,
-                        'Entropy': True,
-                        'InterquartileRange': True,
-                        'Kurtosis': True,
-                        'Maximum': True,
-                        'MeanAbsoluteDeviation': True,
-                        'Mean': True,
-                        'Median': True,
-                        'Minimum': True,
-                        'Range': True,
-                        'RobustMeanAbsoluteDeviation': True,
-                        'RootMeanSquared': True,
-                        'Skewness': True,
-                        'TotalEnergy': True,
-                        'Uniformity': True,
-                        'Variance': True}
+                      '90Percentile': True,
+                      'Energy': True,
+                      'Entropy': True,
+                      'InterquartileRange': True,
+                      'Kurtosis': True,
+                      'Maximum': True,
+                      'MeanAbsoluteDeviation': True,
+                      'Mean': True,
+                      'Median': True,
+                      'Minimum': True,
+                      'Range': True,
+                      'RobustMeanAbsoluteDeviation': True,
+                      'RootMeanSquared': True,
+                      'Skewness': True,
+                      'TotalEnergy': True,
+                      'Uniformity': True,
+                      'Variance': True}
 
     glcm_parameters = {'Autocorrelation': True,
-                        'ClusterProminence': True,
-                        'ClusterShade': True,
-                        'ClusterTendency': True,
-                        'Contrast': True,
-                        'Correlation': True,
-                        'DifferenceAverage': True,
-                        'DifferenceEntropy': True,
-                        'DifferenceVariance': True,
-                        'Id': True,
-                        'Idm': True,
-                        'Idmn': True,
-                        'Idn': True,
-                        'Imc1': True,
-                        'Imc2': True,
-                        'InverseVariance': True,
-                        'JointAverage': True,
-                        'JointEnergy': True,
-                        'JointEntropy': True,
-                        'MCC': True,
-                        'MaximumProbability': True,
-                        'SumAverage': True,
-                        'SumEntropy': True,
-                        'SumSquares': True}
+                       'ClusterProminence': True,
+                       'ClusterShade': True,
+                       'ClusterTendency': True,
+                       'Contrast': True,
+                       'Correlation': True,
+                       'DifferenceAverage': True,
+                       'DifferenceEntropy': True,
+                       'DifferenceVariance': True,
+                       'Id': True,
+                       'Idm': True,
+                       'Idmn': True,
+                       'Idn': True,
+                       'Imc1': True,
+                       'Imc2': True,
+                       'InverseVariance': True,
+                       'JointAverage': True,
+                       'JointEnergy': True,
+                       'JointEntropy': True,
+                       'MCC': True,
+                       'MaximumProbability': True,
+                       'SumAverage': True,
+                       'SumEntropy': True,
+                       'SumSquares': True}
 
     pre_process_params = {'skullstrip_pre': True,
                           'normalization_pre': True,
@@ -158,7 +158,6 @@ def main(result_dir: str, data_atlas_dir: str, data_train_dir: str, data_test_di
     nan_data_idx = np.argwhere(np.isnan(data_train))
     np.savez('data_train.npz', data_train)
     np.save('data_nan.npy', nan_data_idx)
-
 
     start_time = timeit.default_timer()
     forest.fit(data_train, labels_train)
@@ -235,8 +234,9 @@ def main(result_dir: str, data_atlas_dir: str, data_train_dir: str, data_test_di
 
     # clear results such that the evaluator is ready for the next evaluation
     evaluator.clear()
-
-    reporter.feature_writer(result_dir, feature_dictionary, 'feature_report.csv')
+    end_main = timeit.default_timer()
+    main_time = end_main - start_main
+    reporter.feature_writer(result_dir, feature_dictionary, main_time, 'feature_report.csv')
 
 
 if __name__ == "__main__":

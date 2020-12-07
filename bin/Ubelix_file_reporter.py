@@ -24,7 +24,7 @@ import numpy as np
 # filename = 'result_report'
 
 
-def feature_writer(path: str, feature_dic: dict, filename: str):
+def feature_writer(path: str, feature_dic: dict, running_time: float, filename: str):
     if not os.path.exists(os.path.join(path, filename + '.txt')):
 
         with open(os.path.join(path, filename + '.txt'), 'w') as outfile:
@@ -38,7 +38,7 @@ def feature_writer(path: str, feature_dic: dict, filename: str):
 
                 if isinstance(values, list):
                     featureL = str()
-                    outfile.write('\n' + '# 1st order features ')
+                    outfile.write('\n' + '# ' + key)
                     for features in values:
                         outfile.write('\n' + '  # ' + features)
 
@@ -47,5 +47,5 @@ def feature_writer(path: str, feature_dic: dict, filename: str):
                 else:
                     outfile.write('\n' + '# ' + values)
 
-
+            print('\n' + 'Pipeline running time = ' + f'{round(running_time, 3)} second(s)')
 # feature_writer(path, featureList, filename)
