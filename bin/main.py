@@ -118,8 +118,8 @@ def main(result_dir: str, data_atlas_dir: str, data_train_dir: str, data_test_di
                           'HOG_feature': False,
                           'GLCM_features': True,
                           'GLCM_features_parameters': glcm_parameters,
-                          'n_estimators': 100,
-                          'max_depth': 10,
+                          'n_estimators': 50,
+                          'max_depth': 60,
                           'experiment_name': 'default'
                           }
 
