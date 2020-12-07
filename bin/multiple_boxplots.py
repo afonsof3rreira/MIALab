@@ -1,13 +1,12 @@
 import argparse
 import os
-
-import matplotlib
-
-matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 from matplotlib import patches
+import matplotlib
+
+matplotlib.use('Agg')
 
 
 def set_box_format(bp, color):
@@ -22,8 +21,21 @@ def set_box_format(bp, color):
     plt.setp(bp['fliers'], alpha=1)
 
 
-def boxplot1(file_path: str, data: dict, title: str, used_metric: str, x_label: str, y_label: str, x_ticks: tuple,
-             min_: float = None, max_: float = None):
+def boxplot(file_path: str, data: dict, title: str, used_metric: str, x_label: str, y_label: str, x_ticks: tuple,
+            min_: float = None, max_: float = None):
+    """Generates a boxplot for the chosen metric (y axis) comparing 2 different tests for each label in groups of 2 (x axis)
+
+           Args:
+               file_path (str): the output file path
+               data (dict): the data containing DICE and HSDRF for each brain structure and each metric
+               title (str): the plot title
+               used_metric (str): the metric to be used
+               x_label (str): the x-axis label (unused). To use, uncomment it
+               y_label (str): the y-axis label
+               x_ticks (tuple): the methods to be compared for each brain structure
+               min_ (float): the bottom limit of the y-axis
+               max_ (float): the top limit of the y-axis
+    """
     # data = a nested dict
     # data = {'metric1': {'brain_struct1' : [array(vales for test 1), array(values for test2), ...],
     #                     'brain_struct2' : [array(vales for test 1), array(values for test2), ...],
@@ -32,8 +44,6 @@ def boxplot1(file_path: str, data: dict, title: str, used_metric: str, x_label: 
     #                     'brain_struct2' : [array(vales for test 1), array(values for test2), ...],
     #                      ...
     #        }
-
-    # x_label = metric
 
     concat_data = []
     for sub_k, brain_structure in data[used_metric].items():
@@ -52,17 +62,7 @@ def boxplot1(file_path: str, data: dict, title: str, used_metric: str, x_label: 
     fig = plt.figure(
         figsize=(4.8 * 1.5, 6.4 * 1.5))  # figsize defaults to (width, height) =(6.4, 4.8),
     # for boxplots, we want the ratio to be inversed
-    ax = fig.add_subplot(111)  # create an axes instance (nrows=ncols=index)
-
-    print('concat finished')
-    print(concat_data)
-    print(len(concat_data))
-
-    # for further latex interpreter usage (the latex.exe path needs to be added)
-    # rc('font', **{'family': 'sans-serif', 'sans-serif': ['Helvetica']})
-    # ## for Palatino and other serif fonts use:
-    # # rc('font',**{'family':'serif','serif':['Palatino']})
-    # rc('text', usetex=True)
+    fig.add_subplot(111)  # create an axes instance (nrows=ncols=index)
 
     fig, ax = plt.subplots(figsize=(10, 6))
     fig.canvas.set_window_title('A Boxplot Example')
@@ -78,26 +78,21 @@ def boxplot1(file_path: str, data: dict, title: str, used_metric: str, x_label: 
     ax.set_title(title, fontweight='bold', fontsize=12)
     ax.set_ylabel(y_label, fontweight='bold', fontsize=12)
 
-    # ax.set_xlabel(x_label, fontweight='bold', fontsize=9.5)  # we don't use the x-label
-    # since it should be clear from the x-ticks
+    # TODO: we don't use the x-label since it should be clear from the x-ticks. Uncomment to use it
+    # ax.set_xlabel(x_label, fontweight='bold', fontsize=9.5)
+
     ax.yaxis.set_tick_params(labelsize=12)
-
-    x_ticks_final = []
-
-    print(x_ticks)
-    print(type(x_ticks))
-    print(x_ticks[1])
 
     brain_s_len = len(brain_structures) // test_len
 
-    list = []
+    x_tick_l = []
     for i in range(brain_s_len):
         for x in range(len(x_ticks)):
-            list.extend(['{} \n {}'.format(brain_structures[i], x_ticks[x])])
+            x_tick_l.extend(['{} \n {}'.format(brain_structures[i], x_ticks[x])])
     print('new')
-    print(list)
+    print(x_tick_l)
 
-    ax.set_xticklabels(list, fontdict={'fontsize': 8, 'fontweight': 'bold'}, rotation=35, fontsize=8, linespacing=1.5)
+    ax.set_xticklabels(x_tick_l, fontdict={'fontsize': 8, 'fontweight': 'bold'}, rotation=35, fontsize=8, linespacing=1.5)
 
     # remove frame
     ax.spines['top'].set_visible(False)
@@ -106,7 +101,10 @@ def boxplot1(file_path: str, data: dict, title: str, used_metric: str, x_label: 
     ax.spines['left'].set_linewidth(2)
     ax.spines['bottom'].set_linewidth(2)
 
-    ax.set(axisbelow=True)  # Hide the grid behind plot objects)
+    # Hide the grid behind plot objects)
+    ax.set(axisbelow=True)
+
+    # Adding colors
     box_colors = ['darkkhaki', 'royalblue']
 
     num_boxes = len(brain_structures)
@@ -132,7 +130,6 @@ def boxplot1(file_path: str, data: dict, title: str, used_metric: str, x_label: 
     plt.close()
 
 
-
 def format_data(data, label: str, metric: str):
     return data[data['LABEL'] == label][metric].values
 
@@ -149,7 +146,7 @@ def metric_to_readable_text(metric: str):
         raise ValueError('Metric "{}" unknown'.format(metric))
 
 
-def main(csv_file: str, csv_file2: str, plot_dir: str):
+def main(csv_file1: str, csv_file2: str, plot_dir: str):
     metrics = ('DICE', 'HDRFDST')  # the metrics we want to plot the results for
     # metrics_yaxis_limits = (
     # (0.0, 1.0), (0.0, None))  # tuples of y-axis limits (min, max) for each metric. Use None if unknown
@@ -161,7 +158,7 @@ def main(csv_file: str, csv_file2: str, plot_dir: str):
 
     # load the CSVs. We usually want to compare different methods (e.g. a set of different features), therefore,
     # we load two CSV (for simplicity, it is the same here)
-    df_method1 = pd.read_csv(csv_file, sep=';')
+    df_method1 = pd.read_csv(csv_file1, sep=';')
     df_method2 = pd.read_csv(csv_file2, sep=';')
     dfs = [df_method1, df_method2]
 
@@ -173,7 +170,6 @@ def main(csv_file: str, csv_file2: str, plot_dir: str):
     for metric in metrics:
         sub_dict = {}
         for label in labels:
-            # label_metric = '{}_{}'.format(label, metric)
             concat_data.update({metric: {}})
             sub_dict.update({label: [format_data(df, label, metric) for df in dfs]})
 
@@ -181,15 +177,15 @@ def main(csv_file: str, csv_file2: str, plot_dir: str):
 
     for metric, (min_, max_) in zip(metrics, metrics_yaxis_limits):
         print(metric + '-' * 5)
-        boxplot1(os.path.join(plot_dir, '{}.png'.format(metric)),
-                 concat_data,
-                 title.format('all brain structures'),
-                 metric,
-                 'Method',
-                 metric_to_readable_text(metric),
-                 methods,
-                 min_, max_
-                 )
+        boxplot(os.path.join(plot_dir, '{}.png'.format(metric)),
+                concat_data,
+                title.format('all brain structures'),
+                metric,
+                'Method',
+                metric_to_readable_text(metric),
+                methods,
+                min_, max_
+                )
 
 
 if __name__ == '__main__':
@@ -200,10 +196,17 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Result plotting.')
 
     parser.add_argument(
-        '--csv_file',
+        '--csv_file1',
         type=str,
         default='./mia-result/2020-10-27-14-06-14/results.csv',
-        help='Path to the result CSV file.'
+        help='Path to the result CSV file 1.'
+    )
+
+    parser.add_argument(
+        '--csv_file2',
+        type=str,
+        default='./mia-result/2020-10-27-14-06-14/results.csv',
+        help='Path to the result CSV file 2.'
     )
 
     parser.add_argument(
@@ -214,4 +217,4 @@ if __name__ == '__main__':
     )
 
     args = parser.parse_args()
-    main(args.csv_file, args.plot_dir)
+    main(args.csv_file1, args.csv_file2, args.args.plot_dir)
