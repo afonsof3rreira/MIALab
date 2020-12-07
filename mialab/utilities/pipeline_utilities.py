@@ -168,7 +168,7 @@ class FeatureExtractor:
                                                  enumerate(list(self.first_order_feature_parameters.values())) if x==True]
                         enabeled_features = [sitk.VectorIndexSelectionCast(self.img.feature_images[name], j) for j in
                                             enabeled_features_idx]
-                        self.img.feature_images[name] = sitk.Compose(enabeled_features)
+                        self.img.feature_images[name] = sitk.Compose(enabeled_features, sitk.sitkVectorFloat32)
                 except RuntimeError:
                     pass
 
