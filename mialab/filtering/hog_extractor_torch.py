@@ -21,180 +21,116 @@ import torch.nn.functional as F
 from torch import Tensor
 
 print()
+
+
 # Useful link: https://www.learnopencv.com/histogram-of-oriented-gradients/
 # --> article for more info: https://www.hindawi.com/journals/bmri/2017/3956363/
 
 
 class SimpleHOGModule(nn.Module):
 
-    def __init__(self, stride: int = 1):
+    def __init__(self, image: sitk.Image, theta_bins=8, phi_bins=8, block_size=15, stride: int = 1):
+        """Initializes a new instance of the Hog_3D_extractor class.
+
+        Args:
+            theta_bins (int): the theta dimension of the histogram.
+            phi_bins (int): the phi dimension of the histogram.
+            block_size (int): the size of a 3D block (block dimensions = block_size x block_size x block_size)
+            from which to extract each HOG feature set.
+            stride (int): the displacement applied when running the block through the image.
+        """
         super().__init__()
 
         # Set the general properties
         # ==========================
+        self.image = image
+        self.theta_bins = theta_bins
+        self.phi_bins = phi_bins
+        self.block_size = block_size
         self.stride = stride
+        self.output_convolved_images = []
+        #   these lens are the ranges of angle values that each histogram bin can receive
+        self.theta_bin_len = (2 * np.math.pi) / self.theta_bins
+        self.phi_bin_len = np.math.pi / self.phi_bins
+        assert is_odd(block_size), "block size must be odd"
+        self.running_time = 0
 
-        # Build the filter tensors
-        # ========================
+        # Calculates the number of blocks that fit in the image in each dimension
+        # ==========================
+        img_arr_shape = sitk.GetArrayFromImage(image).shape
+
+        # maximal coordinates that can be reached (inclusive)
+        or_z = img_arr_shape[0] - 1
+        or_y = img_arr_shape[1] - 1
+        or_x = img_arr_shape[2] - 1
+
+        # starting coordinates
+        z, y, x = 0, 0, 0
+
+        # centered starting coordinates in the padded image = origin of the original image
+        cent_z, cent_y, cent_x = (self.block_size // 2), (self.block_size // 2), (self.block_size // 2)
+
+        while cent_z <= or_z + (self.block_size // 2) - self.stride:
+            cent_z += self.stride
+            z += 1
+        self.nr_block_z = z + 1
+
+        while cent_y <= or_y + (self.block_size // 2) - self.stride:
+            cent_y += self.stride
+            y += 1
+        self.nr_block_y = y + 1
+
+        while cent_x <= or_x + (self.block_size // 2) - self.stride:
+            cent_x += self.stride
+            x += 1
+        self.nr_block_x = x + 1
+
+        # Setting the filter torch arrays that approximate the partial first-order derivatives for z, y, x
+        # ==========================
 
         # TODO You can do this differently (e.g. see https://gist.github.com/etienne87/b79c6b4aa0ceb2cff554c32a7079fa5a)
         # This is just a small demonstration. If you want to execute it you have to install PyTorch in your virtual
         # environment on UBELIX (look for the correct CUDA version in the documentation). Then select a GPU node in
         # your job file.
 
-        # Tensors for straight gradients in the image tensor
-        s1 = torch.FloatTensor([[[0, 0, 0],
-                                 [0, 0, 0],
-                                 [0, 0, 0]],
-                                [[0, 0, 0],
-                                 [1, 1, 1],
-                                 [0, 0, 0]],
-                                [[0, 0, 0],
-                                 [0, 0, 0],
-                                 [0, 0, 0]]])
-
-        s2 = torch.FloatTensor([[[0, 0, 0],
-                                 [0, 0, 0],
-                                 [0, 0, 0]],
-                                [[0, 1, 0],
-                                 [0, 1, 0],
-                                 [0, 1, 0]],
-                                [[0, 0, 0],
-                                 [0, 0, 0],
-                                 [0, 0, 0]]])
-
-        s3 = torch.FloatTensor([[[0, 0, 0],
-                                 [0, 1, 0],
-                                 [0, 0, 0]],
-                                [[0, 0, 0],
-                                 [0, 1, 0],
-                                 [0, 0, 0]],
-                                [[0, 0, 0],
-                                 [0, 1, 0],
-                                 [0, 0, 0]]])
-
-        # Midplane diagonals
-        d1 = torch.FloatTensor([[[0, 0, 0],
-                                 [0, 0, 0],
-                                 [0, 0, 0]],
-                                [[1, 0, 0],
-                                 [0, 1, 0],
-                                 [0, 0, 1]],
-                                [[0, 0, 0],
-                                 [0, 0, 0],
-                                 [0, 0, 0]]])
-
-        d2 = torch.FloatTensor([[[0, 0, 0],
-                                 [0, 0, 0],
-                                 [0, 0, 0]],
-                                [[0, 0, 1],
-                                 [0, 1, 0],
-                                 [1, 0, 0]],
-                                [[0, 0, 0],
-                                 [0, 0, 0],
-                                 [0, 0, 0]]])
-
-        d3 = torch.FloatTensor([[[0, 1, 0],
-                                 [0, 0, 0],
-                                 [0, 0, 0]],
-                                [[0, 0, 0],
-                                 [0, 1, 0],
-                                 [0, 0, 0]],
-                                [[0, 0, 0],
-                                 [0, 0, 0],
-                                 [0, 1, 0]]])
-
-        d4 = torch.FloatTensor([[[0, 0, 0],
-                                 [0, 0, 0],
-                                 [0, 1, 0]],
-                                [[0, 0, 0],
-                                 [0, 1, 0],
-                                 [0, 0, 0]],
-                                [[0, 1, 0],
-                                 [0, 0, 0],
-                                 [0, 0, 0]]])
-
-        d5 = torch.FloatTensor([[[0, 0, 0],
-                                 [1, 0, 0],
-                                 [0, 0, 0]],
-                                [[0, 0, 0],
-                                 [0, 1, 0],
-                                 [0, 0, 0]],
-                                [[0, 0, 0],
-                                 [0, 0, 1],
-                                 [0, 0, 0]]])
-
-        d6 = torch.FloatTensor([[[0, 0, 0],
-                                 [0, 0, 1],
-                                 [0, 0, 0]],
-                                [[0, 0, 0],
-                                 [0, 1, 0],
-                                 [0, 0, 0]],
-                                [[0, 0, 0],
-                                 [1, 0, 0],
-                                 [0, 0, 0]]])
-
-        # Spatial Diagonal gradients
-        sd1 = torch.FloatTensor([[[1, 0, 0],
+        s_z = torch.FloatTensor([[[0, 0, 0],
+                                  [0, -1, 0],
+                                  [0, 0, 0]],
+                                 [[0, 0, 0],
                                   [0, 0, 0],
                                   [0, 0, 0]],
                                  [[0, 0, 0],
                                   [0, 1, 0],
-                                  [0, 0, 0]],
-                                 [[0, 0, 0],
-                                  [0, 0, 0],
-                                  [0, 0, 1]]])
+                                  [0, 0, 0]]])
 
-        sd2 = torch.FloatTensor([[[0, 0, 1],
+        s_y = torch.FloatTensor([[[0, 0, 0],
                                   [0, 0, 0],
                                   [0, 0, 0]],
-                                 [[0, 0, 0],
-                                  [0, 1, 0],
-                                  [0, 0, 0]],
-                                 [[0, 0, 0],
+                                 [[0, -1, 0],
                                   [0, 0, 0],
-                                  [1, 0, 0]]])
-
-        sd3 = torch.FloatTensor([[[0, 0, 0],
-                                  [0, 0, 0],
-                                  [1, 0, 0]],
+                                  [0, 1, 0]],
                                  [[0, 0, 0],
-                                  [0, 1, 0],
-                                  [0, 0, 0]],
-                                 [[0, 0, 1],
                                   [0, 0, 0],
                                   [0, 0, 0]]])
 
-        sd4 = torch.FloatTensor([[[0, 0, 0],
+        s_x = torch.FloatTensor([[[0, 0, 0],
                                   [0, 0, 0],
-                                  [0, 0, 1]],
-                                 [[0, 0, 0],
-                                  [0, 1, 0],
                                   [0, 0, 0]],
-                                 [[1, 0, 0],
+                                 [[0, 0, 0],
+                                  [-1, 0, 1],
+                                  [0, 0, 0]],
+                                 [[0, 0, 0],
                                   [0, 0, 0],
                                   [0, 0, 0]]])
 
         # Add an additional dimension to the tensors
-        s1 = torch.unsqueeze(s1, dim=0)
-        s2 = torch.unsqueeze(s2, dim=0)
-        s3 = torch.unsqueeze(s3, dim=0)
-
-        d1 = torch.unsqueeze(d1, dim=0)
-        d2 = torch.unsqueeze(d2, dim=0)
-        d3 = torch.unsqueeze(d3, dim=0)
-        d4 = torch.unsqueeze(d4, dim=0)
-        d5 = torch.unsqueeze(d5, dim=0)
-        d6 = torch.unsqueeze(d6, dim=0)
-
-        sd1 = torch.unsqueeze(sd1, dim=0)
-        sd2 = torch.unsqueeze(sd2, dim=0)
-        sd3 = torch.unsqueeze(sd3, dim=0)
-        sd4 = torch.unsqueeze(sd4, dim=0)
+        s_z = torch.unsqueeze(s_z, dim=0)
+        s_y = torch.unsqueeze(s_y, dim=0)
+        s_x = torch.unsqueeze(s_x, dim=0)
 
         # Concatenate the tensors to one tensor and unsqueeze it
         # such that the shape is of form [ch_out, ch_in, kT, kH, kW]
-        self.mat = torch.cat((s1, s2, s3, d1, d2, d3, d4, d5, d6, sd1, sd2, sd3, sd4), dim=0)
+        self.mat = torch.cat((s_z, s_y, s_x), dim=0)
         self.mat = torch.unsqueeze(self.mat, dim=1)
         if torch.cuda.is_available():
             self.mat = self.mat.cuda()
@@ -219,10 +155,189 @@ class SimpleHOGModule(nn.Module):
 
         # Convolve the input tensor with the weights and remove the first dimension
         out = F.conv3d(x, self.weight, None, self.stride, padding=1)
+        out = torch.squeeze(out, dim=0)
+
+        # Retrieving convolved images
+        img_conv_z = out[0]
+        img_conv_y = out[1]
+        img_conv_x = out[2]
 
         # TODO Add here the rest of the HOG mechanics or rewrite the whole HOG extractor ;)
-        # --> Sorry, it has been a long time since i wrote my own HOG feature extractor on 2D images
+        """Calculates the HOG-features for a given image."""
+        # --------------------------------
+        #   creating the output image
+        img_out = sitk.Image(self.image.GetSize(), sitk.sitkVectorFloat32, self.theta_bins * self.phi_bins)
+        img_out_arr = sitk.GetArrayFromImage(img_out)
 
+        # ----------------
+
+        #   cord_z, cord_y, cord_x = are the starting-window-coordinates of the padded image
+        # and correspond to the central window coordinates on the original image
+        print('      (' + str(self.nr_block_z) + ' z blocks to process)')
+        print('      (' + str(self.nr_block_y) + ' y blocks to process)')
+        print('      (' + str(self.nr_block_x) + ' x blocks to process)')
+
+        slice_val = 22
+
+        i_start = time.perf_counter()
+        h_bin_set = None
+        for z in range(self.nr_block_z):
+            cord_z = int(self.block_displacement * z)
+            start_z = time.perf_counter()
+
+            for y in range(self.nr_block_y):
+                cord_y = int(self.block_displacement * y)
+                start_y = time.perf_counter()
+
+                for x in range(self.nr_block_x):
+                    cord_x = int(self.block_displacement * x)
+
+                    # Calculates the HOG-features for a 3D block in the image.
+
+                        # z, y, x are the starting coordinates of each block on the overall image
+                        #   histogram matrix
+                    h_bin_set = np.zeros((self.theta_bins, self.phi_bins))
+                    eps = sys.float_info.epsilon
+
+                    for zz in range(cord_z, cord_z + self.block_size):
+                        for yy in range(cord_y, cord_y + self.block_size):
+                            for xx in range(cord_x, cord_x + self.block_size):
+                                # print(xx)
+                                #   magnitude
+                                r = \
+                                    np.sqrt(img_conv_x[zz, yy, xx] ** 2 + img_conv_y[zz, yy, xx] ** 2 + img_conv_z[
+                                        zz, yy, xx] ** 2)
+                                #   theta
+                                theta = \
+                                    np.math.atan(img_conv_y[zz, yy, xx] / (img_conv_x[zz, yy, xx] + eps))
+                                #   phi
+                                phi = \
+                                    np.math.acos(img_conv_z[zz, yy, xx] / (r + eps))
+                                #   updating histogram matrix
+
+                                # --------------
+                                # def bin_assignment(self, r, theta, phi, h_bin_set):
+                                    """Assigns one value from a block to its histogram matrix bin(s)
+
+                                    Args:
+                                        r (float): the magnitude
+                                        theta (float): the theta angle in radians
+                                        phi (float): the phi angle in radians
+
+                                    Returns:
+                                        np.ndarray: the updated histogram matrix
+                                    """
+
+                                    theta_split, phi_split = True, True
+                                    low_t_bin_ratio, high_t_bin_ratio, low_p_bin_ratio, high_p_bin_ratio = None, None, None, None
+
+                                    # ----- theta -----
+                                    theta = angle_normalizer(theta, 0, 2 * np.pi)
+                                    theta_raw_index = theta / self.theta_bin_len
+                                    low_t_bin_index = int(np.floor(theta_raw_index))
+
+                                    # in case theta index > max index, go back to origin
+                                    if low_t_bin_index == self.theta_bins:
+                                        low_t_bin_index = 0
+
+                                    #   defining adjacent bin indices for magnitude assignment in case of splitting
+                                    if np.modf(theta_raw_index)[0] <= 0.5:
+                                        low_t_bin_ratio = np.modf(theta_raw_index)[0]
+                                        high_t_bin_ratio = 1 - np.modf(theta_raw_index)[0]
+                                    elif np.modf(theta_raw_index)[0] > 0.5:
+                                        low_t_bin_ratio = 1 - np.modf(theta_raw_index)[0]
+                                        high_t_bin_ratio = np.modf(theta_raw_index)[0]
+                                    else:
+                                        theta_split = False
+
+                                    # ----- phi -----
+                                    phi = angle_normalizer(phi, 0, np.pi)
+                                    phi_raw_index = phi / self.phi_bin_len
+                                    low_p_bin_index = int(np.floor(phi_raw_index))
+
+                                    # in case phi index > max index, go back to origin
+                                    if low_p_bin_index == self.phi_bins:
+                                        low_p_bin_index = 0
+
+                                    #   defining adjacent bin indices for magnitude assignment in case of splitting
+                                    if 0 < np.modf(theta_raw_index)[0] <= 0.5:
+                                        low_p_bin_ratio = np.modf(theta_raw_index)[0]
+                                        high_p_bin_ratio = 1 - np.modf(theta_raw_index)[0]
+                                    elif 1 > np.modf(theta_raw_index)[0] > 0.5:
+                                        low_p_bin_ratio = 1 - np.modf(theta_raw_index)[0]
+                                        high_p_bin_ratio = np.modf(theta_raw_index)[0]
+                                    else:
+                                        phi_split = False
+
+                                    # print(' angles = ' + str(theta) + ' ' + str(phi))
+                                    # print(' angles = ' + str(theta) + ' ' + str(phi))
+                                    # print(' values = ' + str(low_t_bin_index) + ' ' + str(low_p_bin_index))
+
+                                    # ----- 4 possible 2D histogram splitting cases -----
+
+                                    # 1) when both phi and theta fit exactly in 1 bin
+                                    if not theta_split and not phi_split:
+                                        h_bin_set[low_t_bin_index][low_p_bin_index] += r
+
+                                    # 2) when only theta is split in 2
+                                    elif theta_split and not phi_split:
+
+                                        # in case theta is split between last and origin bin
+                                        if low_t_bin_index == self.theta_bins - 1:
+                                            high_t_bin_index = 0
+                                        else:
+                                            high_t_bin_index = low_t_bin_index + 1
+
+                                        h_bin_set[low_t_bin_index][low_p_bin_index] += r * low_t_bin_ratio
+                                        h_bin_set[high_t_bin_index][low_p_bin_index] += r * high_t_bin_ratio
+
+                                    # 3) when only phi is split in 2
+                                    elif phi_split and not theta_split:
+
+                                        # in case phi is split between last and origin bin
+                                        if low_p_bin_index == self.phi_bins - 1:
+                                            high_p_bin_index = 0
+                                        else:
+                                            high_p_bin_index = low_p_bin_index + 1
+
+                                        h_bin_set[low_t_bin_index][low_p_bin_index] += r * low_p_bin_ratio
+                                        h_bin_set[low_t_bin_index][high_p_bin_index] += r * high_p_bin_ratio
+
+                                    # 4) when both phi and theta are split in a 2x2 histogram "block"
+                                    else:
+                                        # in case theta is split between last and origin bin
+                                        if low_t_bin_index == self.theta_bins - 1:
+                                            high_t_bin_index = 0
+                                        else:
+                                            high_t_bin_index = low_t_bin_index + 1
+
+                                        # in case phi is split between last and origin bin
+                                        if low_p_bin_index == self.phi_bins - 1:
+                                            high_p_bin_index = 0
+                                        else:
+                                            high_p_bin_index = low_p_bin_index + 1
+
+                                        # theta-axis wise splitting
+                                        h_bin_set[low_t_bin_index][
+                                            low_p_bin_index] += r * low_t_bin_ratio * low_p_bin_ratio
+                                        h_bin_set[high_t_bin_index][
+                                            low_p_bin_index] += r * high_p_bin_ratio * low_p_bin_ratio
+                                        # phi-axis wise splitting
+                                        h_bin_set[low_t_bin_index][
+                                            high_p_bin_index] += r * low_t_bin_ratio * high_p_bin_ratio
+                                        h_bin_set[high_t_bin_index][
+                                            high_p_bin_index] += r * high_p_bin_ratio * high_p_bin_ratio
+
+                    #   returning histogram as a feature set
+                    img_out_arr[z, y, x] = h_bin_set.flatten()
+
+        # --------------------------
+        print(out.size())
+
+        # for x in range(out.size()[0]):
+        #     out[x] = torch.zeros(out.size()[1:])
+        # --> Sorry, it has been a long time since i wrote my own HOG feature extractor on 2D images
+        print(out.size())
         out = torch.squeeze(out, dim=0)
         return out
 
@@ -233,8 +348,7 @@ class HOGExtractorGPU(fltr.Filter):
         super().__init__()
         self.hog_module = SimpleHOGModule()
 
-    def execute(self, image: sitk.Image, params: FilterParams = None) -> sitk.Image:
-
+    def execute(self, image: sitk.Image, params: FilterParams = None):  # -> sitk.Image:
         # Cast the image to a Pytorch tensor
         image_arr = torch.from_numpy(sitk.GetArrayFromImage(image))
 
@@ -244,9 +358,10 @@ class HOGExtractorGPU(fltr.Filter):
         # Detach the features from the computational graph, write the memory to the RAM and
         # cast the features to be a np.ndarray
         features_np = features.detach().cpu().numpy()
-
-        # TODO Rearrange the feature tensor to match the desired output size
-        return features_np
+        # print(np.shape(features_np))
+        return features_np[0], features_np[1], features_np[2]
+        # # TODO Rearrange the feature tensor to match the desired output size
+        # return features_np
 
 
 # Useful link: https://www.learnopencv.com/histogram-of-oriented-gradients/
@@ -658,6 +773,33 @@ def info_txt_writer(path: str, filename: str, value):
         rounded_val = round(value, 2)
         outfile.write('-' * 10 + ' Running time = ' + str(rounded_val) + ' second(s) ' + '-' * 10)
         outfile.write('\n' + '-' * 37)
+
+
+path1 = 'C:/Users/afons/PycharmProjects/MIAlab project/data/train/116524/T1native.nii.gz'
+image1 = load_image(path1, False)
+image1_np = sitk.GetArrayFromImage(image1)
+image1 = sitk.GetImageFromArray(image1_np[:179, :, :])
+print(image1.GetSize())
+# new dimensions x, y, z = (181, 217, 179)
+hog_extractor = HOGExtractorGPU()
+hog_extractor.execute(image1)
+# a, b, c = hog_extractor.execute(image1)
+
+# image1_arr_slice_a = a[98]
+# image1_arr_slice_b = b[98]
+# image1_arr_slice_c = c[98]
+# image1_slice_a = sitk.GetImageFromArray(image1_arr_slice_a)
+# image1_slice_b = sitk.GetImageFromArray(image1_arr_slice_b)
+# image1_slice_c = sitk.GetImageFromArray(image1_arr_slice_c)
+#
+# saving_path = 'C:/Users/afons/OneDrive - Universidade de Lisboa/Erasmus/studies/MIAlab/project/Results_midterm/MIALab_tests/brain_images_torch/after_conv'
+# # sitk.WriteImage(image1_slice_a, os.path.join(saving_path, 'a.png'))
+# # sitk.WriteImage(image1_slice_b, os.path.join(saving_path, 'b.png'))
+# # sitk.WriteImage(image1_slice_c, os.path.join(saving_path, 'c.png'))
+# sitk.WriteImage(sitk.Cast(sitk.RescaleIntensity(image1_slice_a), sitk.sitkUInt8), os.path.join(saving_path, 'a_slice_zeros.png'))
+# sitk.WriteImage(sitk.Cast(sitk.RescaleIntensity(image1_slice_b), sitk.sitkUInt8), os.path.join(saving_path, 'b_slice_zeros.png'))
+# sitk.WriteImage(sitk.Cast(sitk.RescaleIntensity(image1_slice_c), sitk.sitkUInt8), os.path.join(saving_path, 'c_slice_zeros.png'))
+
 
 # if __name__ == '__main__':
 #

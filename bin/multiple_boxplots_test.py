@@ -20,8 +20,62 @@ def set_box_format(bp, color):
     plt.setp(bp['fliers'], alpha=1)
 
 
+class selected_features:
+
+    def __init__(self):
+        self.fof_parameters = ['10Percentile',
+                               '90Percentile',
+                               'Energy',
+                               'Entropy',
+                               'InterquartileRange',
+                               'Kurtosis',
+                               'Maximum',
+                               'MeanAbsoluteDeviation',
+                               'Mean',
+                               'Median',
+                               'Minimum',
+                               'Range',
+                               'RobustMeanAbsoluteDeviation',
+                               'RootMeanSquared',
+                               'Skewness',
+                               'TotalEnergy',
+                               'Uniformity',
+                               'Variance']
+
+        self.glcm_parameters = ['Autocorrelation',
+                                'ClusterProminence',
+                                'ClusterShade',
+                                'ClusterTendency',
+                                'Contrast',
+                                'Correlation',
+                                'DifferenceAverage',
+                                'DifferenceEntropy',
+                                'DifferenceVariance',
+                                'Id',
+                                'Idm',
+                                'Idmn',
+                                'Idn',
+                                'Imc1',
+                                'Imc2',
+                                'InverseVariance',
+                                'JointAverage',
+                                'JointEnergy',
+                                'JointEntropy',
+                                'MCC',
+                                'MaximumProbability',
+                                'SumAverage',
+                                'SumEntropy',
+                                'SumSquares']
+
+    def GetFofList(self):
+        return self.fof_parameters
+
+    def GetSofList(self):
+        return self.glcm_parameters
+
+
 def boxplot(file_path: str, data: dict, title: str, used_metric: str, x_label: str, y_label: str,
-            x_ticks: tuple, min_: float = None, max_: float = None):
+            x_ticks: tuple, min_: float = None, max_: float = None, latex_mode=False):
     """Generates a boxplot for the chosen metric (y axis) comparing all the different tests for the chosen label (x-axis)
 
            Args:
@@ -65,6 +119,11 @@ def boxplot(file_path: str, data: dict, title: str, used_metric: str, x_label: s
     # Add a horizontal grid to the plot, light in color
     ax.yaxis.grid(True, linestyle='-', which='major', color='lightgrey',
                   alpha=0.5)
+
+    if latex_mode:
+        pass
+        # matplotlib.rc('font', **{'family': 'sans-serif', 'sans-serif': ['Helvetica']})
+        # matplotlib.rc('text', usetex=True)
 
     # set and format title, labels, and ticks
     ax.set_title(title, fontweight='bold', fontsize=12)
@@ -123,8 +182,81 @@ def sorted_nicely(l):
     return sorted(l, key=alphanum_key)
 
 
-def read_data(path_folder: str, result_filename='results.csv'):
+# def split_folders(l):
+#
+#     sorted_dirs = sorted_nicely(l)
+#     fof_l, sof_l = [], []
+#     features = selected_features()
+#     for directory in sorted_dirs:
+#         for fof in features.GetFofList():
+#             # print('la')
+#             # print(fof)
+#             if directory == fof:
+#                 fof_l.append(directory)
+#                 break
+#         for sof in features.GetSofList():
+#             if directory == sof:
+#                 sof_l.append(directory)
+#                 break
+#     print(fof_l)
+#     print(sof_l)
+#     return fof_l, sof_l
+
+
+def read_data_RF(path_folder: str, result_filename='results.csv'):
     """ Reads data from a folder containing a sub-folder for each test
+
+           Args:
+               path_folder (str): the folder from which to crawl the the results file
+               result_filename (str): the name of the csv file inside each sub-folder
+
+           Returns:
+               dfs (list): a list containing the loaded values according to the sub-folder order
+               methods (list): a list containing the names of the methods used (= the names of the sub-folders)
+    """
+    dfs_fof, dfs_sof = [], []
+    methods_fof, methods_sof = [], []
+
+    #   features
+    features = selected_features()
+    dirs_fof = features.GetFofList()
+    dirs_sof = features.GetSofList()
+    dirs = [dir_x for dir_x in os.listdir(path_folder)]
+    dirs = sorted_nicely(dirs)
+    print('la')
+    # print(dirs)
+
+    # read through FOF's
+    for dir_i in dirs:
+        for feature_name in dirs_fof:
+            if dir_i == feature_name:
+                methods_fof.append(dir_i)
+                for sub_root, sub_dir, filenames in os.walk(os.path.join(path_folder, dir_i)):
+                    for filename in filenames:
+                        if filename == result_filename:
+                            # print(os.path.join(sub_root, filename))
+                            dfs_fof.append(pd.read_csv(os.path.join(sub_root, filename), sep=';'))
+    print('finished')
+    # read through SOF's
+    for dir_i in dirs:
+        for feature_name in dirs_sof:
+            if dir_i == feature_name:
+                methods_sof.append(dir_i)
+                for sub_root, sub_dir, filenames in os.walk(os.path.join(path_folder, dir_i)):
+                    for filename in filenames:
+                        if filename == result_filename:
+                            # print(os.path.join(sub_root, filename))
+                            dfs_sof.append(pd.read_csv(os.path.join(sub_root, filename), sep=';'))
+    print(methods_fof)
+    print(methods_sof)
+    print(len(methods_fof))
+    print(len(methods_sof))
+
+    return dfs_fof, dfs_sof, methods_fof, methods_sof
+
+
+def read_data_features(path_folder: str, result_filename='results.csv'):
+    """ Reads data from a folder containing a sub-folder for each feature (fof and glcm)
 
            Args:
                path_folder (str): the folder from which to crawl the the results file
@@ -159,36 +291,57 @@ def main(path_folder, plot_dir: str):
               'Thalamus')  # the brain structures/tissues you are interested in
 
     # load the CSVs
-    dfs, methods = read_data(path_folder)
+    dfs_fof, dfs_sof, methods_fof, methods_sof = read_data_RF(path_folder)
 
     # some parameters to improve the plot's readability
-    methods = tuple(methods)
+    methods_fof = tuple(methods_fof)
+    methods_sof = tuple(methods_sof)
 
     title = 'Evaluation metrics for all RF parameters on {}'
 
     # loading data in a nested dictionary
-    concat_data = {}
+    # fof
+    concat_data_fof = {}
     for metric in metrics:
         sub_dict = {}
         for label in labels:
-            concat_data.update({metric: {}})
-            sub_dict.update({label: [format_data(df, label, metric) for df in dfs]})
+            concat_data_fof.update({metric: {}})
+            sub_dict.update({label: [format_data(df, label, metric) for df in dfs_fof]})
 
-        concat_data.update({metric: sub_dict})
+        concat_data_fof.update({metric: sub_dict})
+    print(len(concat_data_fof['DICE']['WhiteMatter']))
 
-    for label in labels:
-        for metric, (min_, max_) in zip(metrics, metrics_yaxis_limits):
-            print(metric + ' ' + label)
-            sub_concat_data = concat_data[metric][label]
-            boxplot(os.path.join(plot_dir, '{}_{}.png'.format(metric, label)),
-                    concat_data,
-                    title.format('all brain structures'),
-                    metric,
-                    label,
-                    metric_to_readable_text(metric),
-                    methods,
-                    min_, max_
-                    )
+    concat_data_sof = {}
+    for metric in metrics:
+        sub_dict = {}
+        for label in labels:
+            concat_data_sof.update({metric: {}})
+            sub_dict.update({label: [format_data(df, label, metric) for df in dfs_sof]})
+
+        concat_data_sof.update({metric: sub_dict})
+    print(len(concat_data_sof['DICE']['WhiteMatter']))
+    data = [concat_data_fof, concat_data_sof]
+    methods = [methods_fof, methods_sof]
+    methods_as_strings = ['FOF', 'SOF']
+    print('-'*10)
+    for feature, method, method_str in zip(data, methods, methods_as_strings):
+        print(len(method))
+        print(len(feature['DICE']['WhiteMatter']))
+        # print(len(method))
+        # print(len(feature))
+        for label in labels:
+            for metric, (min_, max_) in zip(metrics, metrics_yaxis_limits):
+                print(metric + ' ' + label)
+                # sub_concat_data = concat_data[metric][label]
+                boxplot(os.path.join(plot_dir, '{}_{}_{}.png'.format(method_str, metric, label)),
+                        feature,
+                        title.format('all brain structures'),
+                        metric,
+                        label,
+                        metric_to_readable_text(metric),
+                        method,
+                        min_, max_
+                        )
 
 
 if __name__ == '__main__':

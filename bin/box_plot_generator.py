@@ -12,7 +12,7 @@ import timeit
 # --------------------------------------- testing parameters -----------------------------
 
 # method 1 directory, method 2 directory, output directory
-test_folder_path = 'C:/Users/afons/OneDrive - Universidade de Lisboa/Erasmus/studies/MIAlab/project/Results_midterm/tree_test'
-output_path = 'C:/Users/afons/OneDrive - Universidade de Lisboa/Erasmus/studies/MIAlab/project/Results_midterm/MIALab_tests/testing_multiple_bxplt_2'
+test_folder_path = 'C:/Users/afons/OneDrive - Universidade de Lisboa/Erasmus/studies/MIAlab/project/Results_midterm/main_experiments'
+output_path = 'C:/Users/afons/OneDrive - Universidade de Lisboa/Erasmus/studies/MIAlab/project/Results_midterm/MIALab_tests/testing_main_experiments'
 
 main(test_folder_path, output_path)

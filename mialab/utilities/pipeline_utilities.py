@@ -109,8 +109,8 @@ class FeatureExtractor:
             if self.first_order_feature:
                 # compute first order features
                 fof_T1w_features = firstorder.RadiomicsFirstOrder(self.img.images[structure.BrainImageTypes.T1w],
-                                                      self.img.images[structure.BrainImageTypes.BrainMask],
-                                                      voxelBased=True)
+                                                                  self.img.images[structure.BrainImageTypes.BrainMask],
+                                                                  voxelBased=True)
                 fof_T1w_features.enabledFeatures = self.first_order_feature_parameters
                 self.img.feature_images[FeatureImageTypes.T1w_FOF] = fof_T1w_features.execute()
                 self.img.feature_images[FeatureImageTypes.T1w_FOF] = sitk.Compose(
@@ -118,8 +118,8 @@ class FeatureExtractor:
                 self.img.feature_images[FeatureImageTypes.T1w_FOF].CopyInformation(
                     self.img.images[structure.BrainImageTypes.T1w])
                 fof_T2w_features = firstorder.RadiomicsFirstOrder(self.img.images[structure.BrainImageTypes.T2w],
-                                                      self.img.images[structure.BrainImageTypes.BrainMask],
-                                                      voxelBased=True)
+                                                                  self.img.images[structure.BrainImageTypes.BrainMask],
+                                                                  voxelBased=True)
                 fof_T2w_features.enabledFeatures = self.first_order_feature_parameters
                 self.img.feature_images[FeatureImageTypes.T2w_FOF] = fof_T2w_features.execute()
                 self.img.feature_images[FeatureImageTypes.T2w_FOF] = sitk.Compose(
@@ -168,7 +168,8 @@ class FeatureExtractor:
             os.makedirs(self.feature_path, exist_ok=True)
             for _, name in enumerate(FeatureImageTypes):
                 try:
-                    sitk.WriteImage(self.img.feature_images[name], os.path.join(self.feature_path, name.name + '.nii.gz'))
+                    sitk.WriteImage(self.img.feature_images[name],
+                                    os.path.join(self.feature_path, name.name + '.nii.gz'))
                 except KeyError:
                     pass
 
