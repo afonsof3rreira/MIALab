@@ -45,7 +45,7 @@ def feature_writer(path: str, feature_dic: dict, running_time: float, filename: 
                     outfile.write(featureL + '\n')
 
                 else:
-                    outfile.write('\n' + '# ' + values)
+                    outfile.write('\n' + '# ' + key)
 
             print('\n' + 'Pipeline running time = ' + f'{round(running_time, 3)} second(s)')
 # feature_writer(path, featureList, filename)

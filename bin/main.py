@@ -131,15 +131,24 @@ def main(result_dir: str, data_atlas_dir: str, data_train_dir: str, data_test_di
 
     for key, val in pre_process_params.items():
         if key == 'coordinates_feature' and val:
-            feature_dictionary.update({1: key})
+            feature_dictionary.update({key: None})
         if key == 'intensity_feature' and val:
-            feature_dictionary.update({2: key})
+            feature_dictionary.update({key: None})
         if key == 'gradient_intensity_feature' and val:
-            feature_dictionary.update({3: key})
+            feature_dictionary.update({key: None})
         if key == 'first_order_feature' and val:
-            feature_dictionary.update({4: list(fof_parameters.keys())})
+            fof_parameters_list = []
+            for fof, fof_bool in fof_parameters.items():
+                if fof_bool:
+                    fof_parameters_list.append(fof)
+            feature_dictionary.update({key: fof_parameters_list})
+
         if key == 'GLCM_features' and val:
-            feature_dictionary.update({5: list(glcm_parameters.keys())})
+            glcm_parameters_list = []
+            for glcm, glcm_bool in glcm_parameters.items():
+                if glcm_bool:
+                    glcm_parameters_list.append(glcm)
+            feature_dictionary.update({key: glcm_parameters_list})
 
     # load images for training and pre-process
     images = putil.pre_process_batch(crawler.data, pre_process_params, multi_process=False)
@@ -147,7 +156,7 @@ def main(result_dir: str, data_atlas_dir: str, data_train_dir: str, data_test_di
     # generate feature matrix and label vector
     data_train = np.concatenate([img.feature_matrix[0] for img in images])
     labels_train = np.concatenate([img.feature_matrix[1] for img in images]).squeeze()
-    np.nan_to_num(data_train,copy=False)
+    np.nan_to_num(data_train, copy=False)
 
     # warnings.warn('Random forest parameters not properly set.')
     forest = sk_ensemble.RandomForestClassifier(max_features=images[0].feature_matrix[0].shape[1],
