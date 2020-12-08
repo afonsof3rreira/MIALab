@@ -118,8 +118,8 @@ def main(result_dir: str, data_atlas_dir: str, data_train_dir: str, data_test_di
                           'HOG_feature': False,
                           'GLCM_features': True,
                           'GLCM_features_parameters': glcm_parameters,
-                          'n_estimators': 100,
-                          'max_depth': 10,
+                          'n_estimators': 50,
+                          'max_depth': 60,
                           'experiment_name': 'default'
                           }
 
@@ -147,6 +147,7 @@ def main(result_dir: str, data_atlas_dir: str, data_train_dir: str, data_test_di
     # generate feature matrix and label vector
     data_train = np.concatenate([img.feature_matrix[0] for img in images])
     labels_train = np.concatenate([img.feature_matrix[1] for img in images]).squeeze()
+    np.nan_to_num(data_train,copy=False)
 
     # warnings.warn('Random forest parameters not properly set.')
     forest = sk_ensemble.RandomForestClassifier(max_features=images[0].feature_matrix[0].shape[1],
@@ -189,8 +190,8 @@ def main(result_dir: str, data_atlas_dir: str, data_train_dir: str, data_test_di
         print('-' * 10, 'Testing', img.id_)
 
         start_time = timeit.default_timer()
-        predictions = forest.predict(img.feature_matrix[0])
-        probabilities = forest.predict_proba(img.feature_matrix[0])
+        predictions = forest.predict(np.nan_to_num(img.feature_matrix[0],copy=False))
+        probabilities = forest.predict_proba(np.nan_to_num(img.feature_matrix[0],copy=False))
         print(' Time elapsed:', timeit.default_timer() - start_time, 's')
 
         # convert prediction and probabilities back to SimpleITK images
