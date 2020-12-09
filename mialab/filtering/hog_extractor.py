@@ -15,239 +15,6 @@ import shutil
 import multiprocessing as mp
 import datetime
 
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-from torch import Tensor
-
-print()
-# Useful link: https://www.learnopencv.com/histogram-of-oriented-gradients/
-# --> article for more info: https://www.hindawi.com/journals/bmri/2017/3956363/
-
-
-class SimpleHOGModule(nn.Module):
-
-    def __init__(self, stride: int = 1):
-        super().__init__()
-
-        # Set the general properties
-        # ==========================
-        self.stride = stride
-
-        # Build the filter tensors
-        # ========================
-
-        # TODO You can do this differently (e.g. see https://gist.github.com/etienne87/b79c6b4aa0ceb2cff554c32a7079fa5a)
-        # This is just a small demonstration. If you want to execute it you have to install PyTorch in your virtual
-        # environment on UBELIX (look for the correct CUDA version in the documentation). Then select a GPU node in
-        # your job file.
-
-        # Tensors for straight gradients in the image tensor
-        s1 = torch.FloatTensor([[[0, 0, 0],
-                                 [0, 0, 0],
-                                 [0, 0, 0]],
-                                [[0, 0, 0],
-                                 [1, 1, 1],
-                                 [0, 0, 0]],
-                                [[0, 0, 0],
-                                 [0, 0, 0],
-                                 [0, 0, 0]]])
-
-        s2 = torch.FloatTensor([[[0, 0, 0],
-                                 [0, 0, 0],
-                                 [0, 0, 0]],
-                                [[0, 1, 0],
-                                 [0, 1, 0],
-                                 [0, 1, 0]],
-                                [[0, 0, 0],
-                                 [0, 0, 0],
-                                 [0, 0, 0]]])
-
-        s3 = torch.FloatTensor([[[0, 0, 0],
-                                 [0, 1, 0],
-                                 [0, 0, 0]],
-                                [[0, 0, 0],
-                                 [0, 1, 0],
-                                 [0, 0, 0]],
-                                [[0, 0, 0],
-                                 [0, 1, 0],
-                                 [0, 0, 0]]])
-
-        # Midplane diagonals
-        d1 = torch.FloatTensor([[[0, 0, 0],
-                                 [0, 0, 0],
-                                 [0, 0, 0]],
-                                [[1, 0, 0],
-                                 [0, 1, 0],
-                                 [0, 0, 1]],
-                                [[0, 0, 0],
-                                 [0, 0, 0],
-                                 [0, 0, 0]]])
-
-        d2 = torch.FloatTensor([[[0, 0, 0],
-                                 [0, 0, 0],
-                                 [0, 0, 0]],
-                                [[0, 0, 1],
-                                 [0, 1, 0],
-                                 [1, 0, 0]],
-                                [[0, 0, 0],
-                                 [0, 0, 0],
-                                 [0, 0, 0]]])
-
-        d3 = torch.FloatTensor([[[0, 1, 0],
-                                 [0, 0, 0],
-                                 [0, 0, 0]],
-                                [[0, 0, 0],
-                                 [0, 1, 0],
-                                 [0, 0, 0]],
-                                [[0, 0, 0],
-                                 [0, 0, 0],
-                                 [0, 1, 0]]])
-
-        d4 = torch.FloatTensor([[[0, 0, 0],
-                                 [0, 0, 0],
-                                 [0, 1, 0]],
-                                [[0, 0, 0],
-                                 [0, 1, 0],
-                                 [0, 0, 0]],
-                                [[0, 1, 0],
-                                 [0, 0, 0],
-                                 [0, 0, 0]]])
-
-        d5 = torch.FloatTensor([[[0, 0, 0],
-                                 [1, 0, 0],
-                                 [0, 0, 0]],
-                                [[0, 0, 0],
-                                 [0, 1, 0],
-                                 [0, 0, 0]],
-                                [[0, 0, 0],
-                                 [0, 0, 1],
-                                 [0, 0, 0]]])
-
-        d6 = torch.FloatTensor([[[0, 0, 0],
-                                 [0, 0, 1],
-                                 [0, 0, 0]],
-                                [[0, 0, 0],
-                                 [0, 1, 0],
-                                 [0, 0, 0]],
-                                [[0, 0, 0],
-                                 [1, 0, 0],
-                                 [0, 0, 0]]])
-
-        # Spatial Diagonal gradients
-        sd1 = torch.FloatTensor([[[1, 0, 0],
-                                  [0, 0, 0],
-                                  [0, 0, 0]],
-                                 [[0, 0, 0],
-                                  [0, 1, 0],
-                                  [0, 0, 0]],
-                                 [[0, 0, 0],
-                                  [0, 0, 0],
-                                  [0, 0, 1]]])
-
-        sd2 = torch.FloatTensor([[[0, 0, 1],
-                                  [0, 0, 0],
-                                  [0, 0, 0]],
-                                 [[0, 0, 0],
-                                  [0, 1, 0],
-                                  [0, 0, 0]],
-                                 [[0, 0, 0],
-                                  [0, 0, 0],
-                                  [1, 0, 0]]])
-
-        sd3 = torch.FloatTensor([[[0, 0, 0],
-                                  [0, 0, 0],
-                                  [1, 0, 0]],
-                                 [[0, 0, 0],
-                                  [0, 1, 0],
-                                  [0, 0, 0]],
-                                 [[0, 0, 1],
-                                  [0, 0, 0],
-                                  [0, 0, 0]]])
-
-        sd4 = torch.FloatTensor([[[0, 0, 0],
-                                  [0, 0, 0],
-                                  [0, 0, 1]],
-                                 [[0, 0, 0],
-                                  [0, 1, 0],
-                                  [0, 0, 0]],
-                                 [[1, 0, 0],
-                                  [0, 0, 0],
-                                  [0, 0, 0]]])
-
-        # Add an additional dimension to the tensors
-        s1 = torch.unsqueeze(s1, dim=0)
-        s2 = torch.unsqueeze(s2, dim=0)
-        s3 = torch.unsqueeze(s3, dim=0)
-
-        d1 = torch.unsqueeze(d1, dim=0)
-        d2 = torch.unsqueeze(d2, dim=0)
-        d3 = torch.unsqueeze(d3, dim=0)
-        d4 = torch.unsqueeze(d4, dim=0)
-        d5 = torch.unsqueeze(d5, dim=0)
-        d6 = torch.unsqueeze(d6, dim=0)
-
-        sd1 = torch.unsqueeze(sd1, dim=0)
-        sd2 = torch.unsqueeze(sd2, dim=0)
-        sd3 = torch.unsqueeze(sd3, dim=0)
-        sd4 = torch.unsqueeze(sd4, dim=0)
-
-        # Concatenate the tensors to one tensor and unsqueeze it
-        # such that the shape is of form [ch_out, ch_in, kT, kH, kW]
-        self.mat = torch.cat((s1, s2, s3, d1, d2, d3, d4, d5, d6, sd1, sd2, sd3, sd4), dim=0)
-        self.mat = torch.unsqueeze(self.mat, dim=1)
-        if torch.cuda.is_available():
-            self.mat = self.mat.cuda()
-        self.register_buffer("weight", self.mat)
-
-    def forward(self, x: torch.Tensor):
-
-        # Cast the input to the correct data type
-        x = x.type(torch.FloatTensor)
-        if torch.cuda.is_available():
-            x = x.cuda()
-
-        # Render the tensor shape appropriate
-        x = torch.unsqueeze(torch.unsqueeze(x, dim=0), dim=0)
-
-        # Check if the input tensor x has the correct number of dimensions
-        # The input tensor must be of shape [batch, ch_in, iT, iH, iW]
-        if x.ndim != 5:
-            raise ValueError(f'The input tensor needs to be 5 dimensional, but has {x.ndim} dimensions!')
-        if x.shape[1] != 1:
-            raise ValueError(f'The number of input channels is not correct ({x.shape[1]} instead of 1)!')
-
-        # Convolve the input tensor with the weights and remove the first dimension
-        out = F.conv3d(x, self.weight, None, self.stride, padding=1)
-
-        # TODO Add here the rest of the HOG mechanics or rewrite the whole HOG extractor ;)
-        # --> Sorry, it has been a long time since i wrote my own HOG feature extractor on 2D images
-
-        out = torch.squeeze(out, dim=0)
-        return out
-
-
-class HOGExtractorGPU(fltr.Filter):
-
-    def __init__(self):
-        super().__init__()
-        self.hog_module = SimpleHOGModule()
-
-    def execute(self, image: sitk.Image, params: FilterParams = None) -> sitk.Image:
-
-        # Cast the image to a Pytorch tensor
-        image_arr = torch.from_numpy(sitk.GetArrayFromImage(image))
-
-        # Compute the 3D-HOG features using Pytorch
-        features = self.hog_module(image_arr)
-
-        # Detach the features from the computational graph, write the memory to the RAM and
-        # cast the features to be a np.ndarray
-        features_np = features.detach().cpu().numpy()
-
-        # TODO Rearrange the feature tensor to match the desired output size
-        return features_np
-
 
 # Useful link: https://www.learnopencv.com/histogram-of-oriented-gradients/
 # --> article for more info: https://www.hindawi.com/journals/bmri/2017/3956363/
@@ -348,11 +115,11 @@ class HOG_extractor(fltr.Filter):
                         cord_x = int(self.block_displacement * x)
 
                         img_out_arr[cord_z, cord_y, cord_x] = self.neighborhood_hog_extractor(cord_z, cord_y, cord_x)
-
+                        print(img_out_arr[cord_z, cord_y, cord_x])
                         # 2D image test (to be removed), z ~ 100  slice
                         img_test_1_arr[cord_z, cord_y, cord_x] = img_out_arr[cord_z, cord_y, cord_x]
                         # print(img_test_1_arr[cord_z, cord_y, cord_x])
-
+                        print('finished 1 x point')
                     end_y = time.perf_counter()
                     print('Finished block y = ' + str(y) + f' in {round(end_y - start_y, 2)} second(s)')
                 end_z = time.perf_counter()
@@ -659,15 +426,18 @@ def info_txt_writer(path: str, filename: str, value):
         outfile.write('-' * 10 + ' Running time = ' + str(rounded_val) + ' second(s) ' + '-' * 10)
         outfile.write('\n' + '-' * 37)
 
-# if __name__ == '__main__':
-#
-#     # loading the image
-#     path1 = 'C:/Users/afons/PycharmProjects/MIAlab project/data/train/116524/T1native.nii.gz'
-#     image1 = load_image(path1, False)
-#
-#     # ----- testing the algorithm -----
-#     block_size = 15
-#     block_displacement = 20
+if __name__ == '__main__':
+
+    # loading the image
+    path1 = 'C:/Users/afons/PycharmProjects/MIAlab project/data/train/116524/T1native.nii.gz'
+    image1 = load_image(path1, False)
+
+    # ----- testing the algorithm -----
+    block_size = 15
+    block_displacement = 1
+    hog_example = HOG_extractor(block_size=block_size, block_displacement=block_displacement)
+    hog_image = hog_example.execute(image1, multiprocessing=False)
+    print('HOG extraction finished')
 
 # confirming equal results when multiprocess = T or F
 
