@@ -127,29 +127,6 @@ def main(result_dir: str, data_atlas_dir: str, data_train_dir: str, data_test_di
     if bool(parameters):
         pre_process_params = parameters
 
-    feature_dictionary = dict()
-
-    for key, val in pre_process_params.items():
-        if key == 'coordinates_feature' and val:
-            feature_dictionary.update({key: None})
-        if key == 'intensity_feature' and val:
-            feature_dictionary.update({key: None})
-        if key == 'gradient_intensity_feature' and val:
-            feature_dictionary.update({key: None})
-        if key == 'first_order_feature' and val:
-            fof_parameters_list = []
-            for fof, fof_bool in fof_parameters.items():
-                if fof_bool:
-                    fof_parameters_list.append(fof)
-            feature_dictionary.update({key: fof_parameters_list})
-
-        if key == 'GLCM_features' and val:
-            glcm_parameters_list = []
-            for glcm, glcm_bool in glcm_parameters.items():
-                if glcm_bool:
-                    glcm_parameters_list.append(glcm)
-            feature_dictionary.update({key: glcm_parameters_list})
-
     # load images for training and pre-process
     images = putil.pre_process_batch(crawler.data, pre_process_params, multi_process=False)
 
@@ -246,7 +223,9 @@ def main(result_dir: str, data_atlas_dir: str, data_train_dir: str, data_test_di
     evaluator.clear()
     end_main = timeit.default_timer()
     main_time = end_main - start_main
-    reporter.feature_writer(result_dir, feature_dictionary, main_time, 'feature_report.csv')
+
+    # writing information on a txt file
+    reporter.feature_writer(result_dir, pre_process_params, main_time, 'feature_report')
 
 
 if __name__ == "__main__":
