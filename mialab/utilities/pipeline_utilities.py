@@ -149,7 +149,6 @@ class FeatureExtractor:
                     self.img.images[structure.BrainImageTypes.T2w])
 
             if self.HOG_feature:
-
                 # compute 3D-HOG features with GPU support
                 hog_features_T1w = fltr_hog.HOGExtractorGPU(self.img.images[structure.BrainImageTypes.T1w])
                 self.img.feature_images[FeatureImageTypes.T1w_HOG] = \
@@ -165,12 +164,15 @@ class FeatureExtractor:
                     self.img.feature_images[name] = \
                         sitk.ReadImage(os.path.join(self.feature_path, name.name + '.nii.gz'), sitk.sitkVectorFloat32)
                     study_features = [FeatureImageTypes.T1w_FOF, FeatureImageTypes.T2w_FOF,
+                                      FeatureImageTypes.T1w_HOG, FeatureImageTypes.T2w_HOG,
                                       FeatureImageTypes.T1w_GLCM, FeatureImageTypes.T2w_GLCM]
+
                     if name in study_features:
-                        enabeled_features_idx = [i for i,x in
-                                                 enumerate(list(self.first_order_feature_parameters.values())) if x==True]
+                        enabeled_features_idx = [i for i, x in
+                                                 enumerate(list(self.first_order_feature_parameters.values())) if
+                                                 x == True]
                         enabeled_features = [sitk.VectorIndexSelectionCast(self.img.feature_images[name], j) for j in
-                                            enabeled_features_idx]
+                                             enabeled_features_idx]
                         self.img.feature_images[name] = sitk.Compose(enabeled_features, sitk.sitkVectorFloat32)
                 except RuntimeError:
                     pass
@@ -258,6 +260,14 @@ class FeatureExtractor:
 
         return image.reshape((no_voxels, number_of_components))
 
+
+# def pre_processed_images_saver():
+#     """ Save
+#     - Registration
+#     - Pre-processing
+#     - Feature extraction
+#     """
+#     pass
 
 def pre_process(id_: str, paths: dict, **kwargs) -> structure.BrainImage:
     """Loads and processes an image.
