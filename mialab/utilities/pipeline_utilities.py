@@ -14,7 +14,7 @@ from skimage import feature
 
 import mialab.data.structure as structure
 import mialab.filtering.feature_extraction as fltr_feat
-# import mialab.filtering.hog_extractor as fltr_hog
+import mialab.filtering.hog_extractor_torch_v2 as fltr_hog
 from radiomics import glcm, firstorder
 import mialab.filtering.postprocessing as fltr_postp
 import mialab.filtering.preprocessing as fltr_prep
@@ -151,11 +151,13 @@ class FeatureExtractor:
             if self.HOG_feature:
 
                 # compute 3D-HOG features with GPU support
-                hog_features = fltr_hog.HOGExtractorGPU()
+                hog_features_T1w = fltr_hog.HOGExtractorGPU(self.img.images[structure.BrainImageTypes.T1w])
                 self.img.feature_images[FeatureImageTypes.T1w_HOG] = \
-                    hog_features.execute(self.img.images[structure.BrainImageTypes.T1w])
+                    hog_features_T1w.execute(self.img.images[structure.BrainImageTypes.T1w])
+
+                hog_features_T2w = fltr_hog.HOGExtractorGPU(self.img.images[structure.BrainImageTypes.T1w])
                 self.img.feature_images[FeatureImageTypes.T2w_HOG] = \
-                    hog_features.execute(self.img.images[structure.BrainImageTypes.T2w])
+                    hog_features_T2w.execute(self.img.images[structure.BrainImageTypes.T2w])
 
         else:
             for _, name in enumerate(FeatureImageTypes):
@@ -185,9 +187,6 @@ class FeatureExtractor:
         self._generate_feature_matrix()
 
         return self.img
-
-    def getFeatures_dictionary(self):
-        return self.featureD
 
     def _generate_feature_matrix(self):
         """Generates a feature matrix."""

@@ -137,7 +137,6 @@ class SimpleHOGModule(nn.Module):
         offset = self.block_size // 2
         self.pooler = nn.AvgPool3d(block_size, stride=stride, padding=offset, ceil_mode=False, count_include_pad=False)
 
-
     def forward(self, x: torch.Tensor):
 
         # Cast the input to the correct data type
@@ -402,7 +401,7 @@ class SimpleHOGModule(nn.Module):
             out_plus_bins = torch.reshape(out_plus_bins, (n, self.theta_bins * self.phi_bins,
                                                           d + 2 * offset - 2, h + 2 * offset - 2, w + 2 * offset - 2))
             print(out_plus_bins.size())
-            return self.pooler(out_plus_bins)   # torch.Size([1, 64, 195, 231, 195])
+            return self.pooler(out_plus_bins)  # torch.Size([1, 64, 195, 231, 195])
 
     def Get_block_size(self):
         return self.block_size
@@ -421,7 +420,7 @@ class HOGExtractorGPU(fltr.Filter):
         # print(image_arr.size())
 
         # Compute the 3D-HOG features using Pytorch
-        features = self.hog_module(image_arr)   # torch.Size([1, 64, 195, 231, 195])
+        features = self.hog_module(image_arr)  # torch.Size([1, 64, 195, 231, 195])
         # print('=' * 20)
         # print(image.GetSize())
         # print(type(image.GetSize()))
@@ -429,16 +428,16 @@ class HOGExtractorGPU(fltr.Filter):
         # Detach the features from the computational graph, write the memory to the RAM and
         # cast the features to be a np.ndarray
         features_np = features.detach().cpu().numpy()
-        features_np = np.squeeze(features_np)   # torch.Size([64, 195, 231, 195])
-        features_np = np.transpose(features_np, (1, 2, 3, 0))   # torch.Size([195, 231, 195, 64])
+        features_np = np.squeeze(features_np)  # torch.Size([64, 195, 231, 195])
+        features_np = np.transpose(features_np, (1, 2, 3, 0))  # torch.Size([195, 231, 195, 64])
 
         image_size = image.GetSize()
         # [7:180 + 8, 7:216 + 8, 7:180 + 8]
         offset = self.hog_module.Get_block_size() // 2
 
         features_np = features_np[offset:image_size[2] + offset,
-                                  offset:image_size[1] + offset,
-                                  offset:image_size[0] + offset]
+                      offset:image_size[1] + offset,
+                      offset:image_size[0] + offset]
 
         # print(features_np.shape)
         # checking the zero problem
@@ -467,7 +466,6 @@ def is_odd(nr):
         return False
     else:
         return True
-
 
 # val = torch.tensor(6.34 * 10)
 # val1 = val.floor().long() % 10
@@ -567,18 +565,18 @@ def is_odd(nr):
 # print(index_tensor.size())
 
 # ------------ running and saving feature .nii.gz image -----------------
-path1 = 'C:/Users/afons/PycharmProjects/MIAlab project/data/train/116524/T1native.nii.gz'
-image1 = sitk.ReadImage(path1, sitk.sitkFloat32)
-# image1 = load_image(path1, False)
-image1_np = sitk.GetArrayFromImage(image1)
-image1 = sitk.GetImageFromArray(image1_np[:179, :, :])
-print(image1.GetSize())
-# new dimensions x, y, z = (181, 217, 179)
-hog_extractor = HOGExtractorGPU(image1)
-image_out = hog_extractor.execute(image1)
-# --------------------------------------------------------------------
-file_name = 'image_hog_final_3d_avg.nii.gz'
-sitk.WriteImage(sitk.RescaleIntensity(image_out), file_name)
+# path1 = 'C:/Users/afons/PycharmProjects/MIAlab project/data/train/116524/T1native.nii.gz'
+# image1 = sitk.ReadImage(path1, sitk.sitkFloat32)
+# # image1 = load_image(path1, False)
+# image1_np = sitk.GetArrayFromImage(image1)
+# image1 = sitk.GetImageFromArray(image1_np[:179, :, :])
+# print(image1.GetSize())
+# # new dimensions x, y, z = (181, 217, 179)
+# hog_extractor = HOGExtractorGPU(image1)
+# image_out = hog_extractor.execute(image1)
+# # --------------------------------------------------------------------
+# file_name = 'image_hog_final_3d_avg.nii.gz'
+# sitk.WriteImage(sitk.RescaleIntensity(image_out), file_name)
 # ----------------------------------------------------------------------
 # ---------------------
 # path1 = 'C:/Users/afons/PycharmProjects\MIAlab project\mialab/filtering\image_hog_final.nii.gz'
