@@ -116,8 +116,7 @@ class HOG_extractor(fltr.Filter):
 
                         img_out_arr[cord_z, cord_y, cord_x] = self.neighborhood_hog_extractor(cord_z, cord_y, cord_x)
                         print(img_out_arr[cord_z, cord_y, cord_x])
-                        # 2D image test (to be removed), z ~ 100  slice
-                        img_test_1_arr[cord_z, cord_y, cord_x] = img_out_arr[cord_z, cord_y, cord_x]
+
                         # print(img_test_1_arr[cord_z, cord_y, cord_x])
                         print('finished 1 x point')
                     end_y = time.perf_counter()

@@ -164,145 +164,145 @@ class SimpleHOGModule(nn.Module):
 
         #   cord_z, cord_y, cord_x = are the starting-window-coordinates of the padded image
         # and correspond to the central window coordinates on the original image
+        with torch.no_grad():
+            for z in range(self.nr_block_z):
+                cord_z = int(self.stride * z)
 
-        for z in range(self.nr_block_z):
-            cord_z = int(self.stride * z)
+                for y in range(self.nr_block_y):
+                    cord_y = int(self.stride * y)
 
-            for y in range(self.nr_block_y):
-                cord_y = int(self.stride * y)
+                    for x in range(self.nr_block_x):
+                        cord_x = int(self.stride * x)
 
-                for x in range(self.nr_block_x):
-                    cord_x = int(self.stride * x)
+                        # Calculates the HOG-features for a 3D block in the image.
 
-                    # Calculates the HOG-features for a 3D block in the image.
+                        # z, y, x are the starting coordinates of each block on the overall image
+                        #   histogram matrix
+                        h_bin_set = torch.zeros((self.theta_bins, self.phi_bins))
+                        eps = sys.float_info.epsilon
 
-                    # z, y, x are the starting coordinates of each block on the overall image
-                    #   histogram matrix
-                    h_bin_set = torch.zeros((self.theta_bins, self.phi_bins))
-                    eps = sys.float_info.epsilon
+                        for zz in range(cord_z, cord_z + self.block_size):
+                            for yy in range(cord_y, cord_y + self.block_size):
+                                for xx in range(cord_x, cord_x + self.block_size):
 
-                    for zz in range(cord_z, cord_z + self.block_size):
-                        for yy in range(cord_y, cord_y + self.block_size):
-                            for xx in range(cord_x, cord_x + self.block_size):
+                                    #   magnitude
+                                    r = \
+                                        np.sqrt(img_conv_x[zz, yy, xx] ** 2 + img_conv_y[zz, yy, xx] ** 2 + img_conv_z[
+                                            zz, yy, xx] ** 2)
+                                    #   theta
+                                    theta = \
+                                        np.math.atan(img_conv_y[zz, yy, xx] / (img_conv_x[zz, yy, xx] + eps))
+                                    #   phi
+                                    phi = \
+                                        np.math.acos(img_conv_z[zz, yy, xx] / (r + eps))
+                                    #   updating histogram matrix
 
-                                #   magnitude
-                                r = \
-                                    np.sqrt(img_conv_x[zz, yy, xx] ** 2 + img_conv_y[zz, yy, xx] ** 2 + img_conv_z[
-                                        zz, yy, xx] ** 2)
-                                #   theta
-                                theta = \
-                                    np.math.atan(img_conv_y[zz, yy, xx] / (img_conv_x[zz, yy, xx] + eps))
-                                #   phi
-                                phi = \
-                                    np.math.acos(img_conv_z[zz, yy, xx] / (r + eps))
-                                #   updating histogram matrix
+                                    # --------------
+                                    # def bin_assignment(self, r, theta, phi, h_bin_set):
 
-                                # --------------
-                                # def bin_assignment(self, r, theta, phi, h_bin_set):
+                                    theta_split, phi_split = True, True
+                                    low_t_bin_ratio, high_t_bin_ratio, low_p_bin_ratio, high_p_bin_ratio = None, None, None, None
 
-                                theta_split, phi_split = True, True
-                                low_t_bin_ratio, high_t_bin_ratio, low_p_bin_ratio, high_p_bin_ratio = None, None, None, None
+                                    # ----- theta -----
+                                    theta = angle_normalizer(theta, 0, 2 * np.pi)
+                                    theta_raw_index = theta / self.theta_bin_len
+                                    low_t_bin_index = int(np.floor(theta_raw_index))
 
-                                # ----- theta -----
-                                theta = angle_normalizer(theta, 0, 2 * np.pi)
-                                theta_raw_index = theta / self.theta_bin_len
-                                low_t_bin_index = int(np.floor(theta_raw_index))
+                                    # in case theta index > max index, go back to origin
+                                    if low_t_bin_index == self.theta_bins:
+                                        low_t_bin_index = 0
 
-                                # in case theta index > max index, go back to origin
-                                if low_t_bin_index == self.theta_bins:
-                                    low_t_bin_index = 0
-
-                                #   defining adjacent bin indices for magnitude assignment in case of splitting
-                                if np.modf(theta_raw_index)[0] <= 0.5:
-                                    low_t_bin_ratio = np.modf(theta_raw_index)[0]
-                                    high_t_bin_ratio = 1 - np.modf(theta_raw_index)[0]
-                                elif np.modf(theta_raw_index)[0] > 0.5:
-                                    low_t_bin_ratio = 1 - np.modf(theta_raw_index)[0]
-                                    high_t_bin_ratio = np.modf(theta_raw_index)[0]
-                                else:
-                                    theta_split = False
-
-                                # ----- phi -----
-                                phi = angle_normalizer(phi, 0, np.pi)
-                                phi_raw_index = phi / self.phi_bin_len
-                                low_p_bin_index = int(np.floor(phi_raw_index))
-
-                                # in case phi index > max index, go back to origin
-                                if low_p_bin_index == self.phi_bins:
-                                    low_p_bin_index = 0
-
-                                #   defining adjacent bin indices for magnitude assignment in case of splitting
-                                if 0 < np.modf(theta_raw_index)[0] <= 0.5:
-                                    low_p_bin_ratio = np.modf(theta_raw_index)[0]
-                                    high_p_bin_ratio = 1 - np.modf(theta_raw_index)[0]
-                                elif 1 > np.modf(theta_raw_index)[0] > 0.5:
-                                    low_p_bin_ratio = 1 - np.modf(theta_raw_index)[0]
-                                    high_p_bin_ratio = np.modf(theta_raw_index)[0]
-                                else:
-                                    phi_split = False
-
-                                # ----- 4 possible 2D histogram splitting cases -----
-
-                                # 1) when both phi and theta fit exactly in 1 bin
-                                if not theta_split and not phi_split:
-                                    h_bin_set[low_t_bin_index][low_p_bin_index] += r
-
-                                # 2) when only theta is split in 2
-                                elif theta_split and not phi_split:
-
-                                    # in case theta is split between last and origin bin
-                                    if low_t_bin_index == self.theta_bins - 1:
-                                        high_t_bin_index = 0
+                                    #   defining adjacent bin indices for magnitude assignment in case of splitting
+                                    if np.modf(theta_raw_index)[0] <= 0.5:
+                                        low_t_bin_ratio = np.modf(theta_raw_index)[0]
+                                        high_t_bin_ratio = 1 - np.modf(theta_raw_index)[0]
+                                    elif np.modf(theta_raw_index)[0] > 0.5:
+                                        low_t_bin_ratio = 1 - np.modf(theta_raw_index)[0]
+                                        high_t_bin_ratio = np.modf(theta_raw_index)[0]
                                     else:
-                                        high_t_bin_index = low_t_bin_index + 1
+                                        theta_split = False
 
-                                    h_bin_set[low_t_bin_index][low_p_bin_index] += r * low_t_bin_ratio
-                                    h_bin_set[high_t_bin_index][low_p_bin_index] += r * high_t_bin_ratio
+                                    # ----- phi -----
+                                    phi = angle_normalizer(phi, 0, np.pi)
+                                    phi_raw_index = phi / self.phi_bin_len
+                                    low_p_bin_index = int(np.floor(phi_raw_index))
 
-                                # 3) when only phi is split in 2
-                                elif phi_split and not theta_split:
+                                    # in case phi index > max index, go back to origin
+                                    if low_p_bin_index == self.phi_bins:
+                                        low_p_bin_index = 0
 
-                                    # in case phi is split between last and origin bin
-                                    if low_p_bin_index == self.phi_bins - 1:
-                                        high_p_bin_index = 0
+                                    #   defining adjacent bin indices for magnitude assignment in case of splitting
+                                    if 0 < np.modf(theta_raw_index)[0] <= 0.5:
+                                        low_p_bin_ratio = np.modf(theta_raw_index)[0]
+                                        high_p_bin_ratio = 1 - np.modf(theta_raw_index)[0]
+                                    elif 1 > np.modf(theta_raw_index)[0] > 0.5:
+                                        low_p_bin_ratio = 1 - np.modf(theta_raw_index)[0]
+                                        high_p_bin_ratio = np.modf(theta_raw_index)[0]
                                     else:
-                                        high_p_bin_index = low_p_bin_index + 1
+                                        phi_split = False
 
-                                    h_bin_set[low_t_bin_index][low_p_bin_index] += r * low_p_bin_ratio
-                                    h_bin_set[low_t_bin_index][high_p_bin_index] += r * high_p_bin_ratio
+                                    # ----- 4 possible 2D histogram splitting cases -----
 
-                                # 4) when both phi and theta are split in a 2x2 histogram "block"
-                                else:
-                                    # in case theta is split between last and origin bin
-                                    if low_t_bin_index == self.theta_bins - 1:
-                                        high_t_bin_index = 0
+                                    # 1) when both phi and theta fit exactly in 1 bin
+                                    if not theta_split and not phi_split:
+                                        h_bin_set[low_t_bin_index][low_p_bin_index] += r
+
+                                    # 2) when only theta is split in 2
+                                    elif theta_split and not phi_split:
+
+                                        # in case theta is split between last and origin bin
+                                        if low_t_bin_index == self.theta_bins - 1:
+                                            high_t_bin_index = 0
+                                        else:
+                                            high_t_bin_index = low_t_bin_index + 1
+
+                                        h_bin_set[low_t_bin_index][low_p_bin_index] += r * low_t_bin_ratio
+                                        h_bin_set[high_t_bin_index][low_p_bin_index] += r * high_t_bin_ratio
+
+                                    # 3) when only phi is split in 2
+                                    elif phi_split and not theta_split:
+
+                                        # in case phi is split between last and origin bin
+                                        if low_p_bin_index == self.phi_bins - 1:
+                                            high_p_bin_index = 0
+                                        else:
+                                            high_p_bin_index = low_p_bin_index + 1
+
+                                        h_bin_set[low_t_bin_index][low_p_bin_index] += r * low_p_bin_ratio
+                                        h_bin_set[low_t_bin_index][high_p_bin_index] += r * high_p_bin_ratio
+
+                                    # 4) when both phi and theta are split in a 2x2 histogram "block"
                                     else:
-                                        high_t_bin_index = low_t_bin_index + 1
+                                        # in case theta is split between last and origin bin
+                                        if low_t_bin_index == self.theta_bins - 1:
+                                            high_t_bin_index = 0
+                                        else:
+                                            high_t_bin_index = low_t_bin_index + 1
 
-                                    # in case phi is split between last and origin bin
-                                    if low_p_bin_index == self.phi_bins - 1:
-                                        high_p_bin_index = 0
-                                    else:
-                                        high_p_bin_index = low_p_bin_index + 1
+                                        # in case phi is split between last and origin bin
+                                        if low_p_bin_index == self.phi_bins - 1:
+                                            high_p_bin_index = 0
+                                        else:
+                                            high_p_bin_index = low_p_bin_index + 1
 
-                                    # theta-axis wise splitting
-                                    h_bin_set[low_t_bin_index][
-                                        low_p_bin_index] += r * low_t_bin_ratio * low_p_bin_ratio
-                                    h_bin_set[high_t_bin_index][
-                                        low_p_bin_index] += r * high_p_bin_ratio * low_p_bin_ratio
-                                    # phi-axis wise splitting
-                                    h_bin_set[low_t_bin_index][
-                                        high_p_bin_index] += r * low_t_bin_ratio * high_p_bin_ratio
-                                    h_bin_set[high_t_bin_index][
-                                        high_p_bin_index] += r * high_p_bin_ratio * high_p_bin_ratio
+                                        # theta-axis wise splitting
+                                        h_bin_set[low_t_bin_index][
+                                            low_p_bin_index] += r * low_t_bin_ratio * low_p_bin_ratio
+                                        h_bin_set[high_t_bin_index][
+                                            low_p_bin_index] += r * high_p_bin_ratio * low_p_bin_ratio
+                                        # phi-axis wise splitting
+                                        h_bin_set[low_t_bin_index][
+                                            high_p_bin_index] += r * low_t_bin_ratio * high_p_bin_ratio
+                                        h_bin_set[high_t_bin_index][
+                                            high_p_bin_index] += r * high_p_bin_ratio * high_p_bin_ratio
 
-                    #   returning histogram as a feature set
-                    out_arr[0, 0, z, y, x] = torch.flatten(h_bin_set)
-        #             print(out_arr[0, 0, z, y, x])
-        #             print('finished 1 x point')
-        # print(out.size())
-        out = torch.squeeze(out_arr, dim=0)
-        return out
+                        #   returning histogram as a feature set
+                        out_arr[0, 0, z, y, x] = torch.flatten(h_bin_set)
+            #             print(out_arr[0, 0, z, y, x])
+                        print('finished 1 x point')
+            # print(out.size())
+            out = torch.squeeze(out_arr, dim=0)
+            return out
 
     def Get_bin_sizes(self):
         return [self.theta_bins, self.phi_bins]
@@ -375,14 +375,14 @@ def is_odd(nr):
 #         outfile.write('\n' + '-' * 37)
 
 
-# path1 = 'C:/Users/afons/PycharmProjects/MIAlab project/data/train/116524/T1native.nii.gz'
-# image1 = load_image(path1, False)
-# # image1_np = sitk.GetArrayFromImage(image1)
-# # image1 = sitk.GetImageFromArray(image1_np[:179, :, :])
-# print(image1.GetSize())
-# # new dimensions x, y, z = (181, 217, 179)
-# hog_extractor = HOGExtractorGPU(image1)
-# hog_extractor.execute(image1)
+path1 = 'C:/Users/afons/PycharmProjects/MIAlab project/data/train/116524/T1native.nii.gz'
+image1 = load_image(path1, False)
+# image1_np = sitk.GetArrayFromImage(image1)
+# image1 = sitk.GetImageFromArray(image1_np[:179, :, :])
+print(image1.GetSize())
+# new dimensions x, y, z = (181, 217, 179)
+hog_extractor = HOGExtractorGPU(image1)
+hog_extractor.execute(image1)
 
 
 # image1_arr_slice_a = a[98]
