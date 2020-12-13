@@ -386,7 +386,7 @@ class SimpleHOGModule(nn.Module):
 
             out_plus_bins = torch.zeros(  # torch.Size([1, 8, 8, 195, 231, 195])
                 (n, self.theta_bins, self.phi_bins, d + 2 * offset - 2, h + 2 * offset - 2, w + 2 * offset - 2),
-                dtype=torch.float, device=x.device)
+                dtype=torch.float, device=theta_upper_ind_fracs_f_3.device)
 
             # print('=' * 10)
             # print(out_plus_bins.size())
