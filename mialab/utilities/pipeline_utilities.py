@@ -260,15 +260,6 @@ class FeatureExtractor:
 
         return image.reshape((no_voxels, number_of_components))
 
-
-# def pre_processed_images_saver():
-#     """ Save
-#     - Registration
-#     - Pre-processing
-#     - Feature extraction
-#     """
-#     pass
-
 def pre_process(id_: str, paths: dict, **kwargs) -> structure.BrainImage:
     """Loads and processes an image.
 

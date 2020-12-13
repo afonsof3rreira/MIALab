@@ -318,6 +318,7 @@ class SimpleHOGModule(nn.Module):
             theta_upper_ind_fracs_f_3.scatter_(1, int_indices[:, :, 1, :, :, :],
                                                torch.mul(composed_frac_parts[:, 3, :, :, :], mag))
 
+
             # print('=' * 10)
             # print(int_indices[:, :, 2, :, :, :].size())
             # print(int_indices[:, :, 0, :, :, :].size())
@@ -354,6 +355,13 @@ class SimpleHOGModule(nn.Module):
 
             theta_upper_ind_fracs_f_3 = torch.unsqueeze(theta_upper_ind_fracs_f_3, dim=0)
             theta_upper_ind_fracs_f_3 = torch.transpose(theta_upper_ind_fracs_f_3, 1, 2)
+
+            # freeing up unused tensors from memory
+            del int_indices
+            del composed_frac_parts
+            del mag
+            del phi
+            del theta
 
             # print(low_p_ordered_by_low_t.size())
 
@@ -467,6 +475,7 @@ def is_odd(nr):
     else:
         return True
 
+
 # val = torch.tensor(6.34 * 10)
 # val1 = val.floor().long() % 10
 # print(val1)
@@ -565,16 +574,16 @@ def is_odd(nr):
 # print(index_tensor.size())
 
 # ------------ running and saving feature .nii.gz image -----------------
-# path1 = 'C:/Users/afons/PycharmProjects/MIAlab project/data/train/116524/T1native.nii.gz'
-# image1 = sitk.ReadImage(path1, sitk.sitkFloat32)
-# # image1 = load_image(path1, False)
-# image1_np = sitk.GetArrayFromImage(image1)
-# image1 = sitk.GetImageFromArray(image1_np[:179, :, :])
-# print(image1.GetSize())
-# # new dimensions x, y, z = (181, 217, 179)
-# hog_extractor = HOGExtractorGPU(image1)
-# image_out = hog_extractor.execute(image1)
-# # --------------------------------------------------------------------
+path1 = 'C:/Users/afons/PycharmProjects/MIAlab project/data/train/116524/T1native.nii.gz'
+image1 = sitk.ReadImage(path1, sitk.sitkFloat32)
+# image1 = load_image(path1, False)
+image1_np = sitk.GetArrayFromImage(image1)
+image1 = sitk.GetImageFromArray(image1_np[:179, :, :])
+print(image1.GetSize())
+# new dimensions x, y, z = (181, 217, 179)
+hog_extractor = HOGExtractorGPU(image1)
+image_out = hog_extractor.execute(image1)
+# --------------------------------------------------------------------
 # file_name = 'image_hog_final_3d_avg.nii.gz'
 # sitk.WriteImage(sitk.RescaleIntensity(image_out), file_name)
 # ----------------------------------------------------------------------
