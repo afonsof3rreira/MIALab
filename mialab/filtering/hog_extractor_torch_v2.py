@@ -362,6 +362,7 @@ class SimpleHOGModule(nn.Module):
             del mag
             del phi
             del theta
+            torch.cuda.empty_cache()
 
             # print(low_p_ordered_by_low_t.size())
 
@@ -574,15 +575,15 @@ def is_odd(nr):
 # print(index_tensor.size())
 
 # ------------ running and saving feature .nii.gz image -----------------
-path1 = 'C:/Users/afons/PycharmProjects/MIAlab project/data/train/116524/T1native.nii.gz'
-image1 = sitk.ReadImage(path1, sitk.sitkFloat32)
-# image1 = load_image(path1, False)
-image1_np = sitk.GetArrayFromImage(image1)
-image1 = sitk.GetImageFromArray(image1_np[:179, :, :])
-print(image1.GetSize())
-# new dimensions x, y, z = (181, 217, 179)
-hog_extractor = HOGExtractorGPU(image1)
-image_out = hog_extractor.execute(image1)
+# path1 = 'C:/Users/afons/PycharmProjects/MIAlab project/data/train/116524/T1native.nii.gz'
+# image1 = sitk.ReadImage(path1, sitk.sitkFloat32)
+# # image1 = load_image(path1, False)
+# image1_np = sitk.GetArrayFromImage(image1)
+# image1 = sitk.GetImageFromArray(image1_np[:179, :, :])
+# print(image1.GetSize())
+# # new dimensions x, y, z = (181, 217, 179)
+# hog_extractor = HOGExtractorGPU(image1)
+# image_out = hog_extractor.execute(image1)
 # --------------------------------------------------------------------
 # file_name = 'image_hog_final_3d_avg.nii.gz'
 # sitk.WriteImage(sitk.RescaleIntensity(image_out), file_name)
