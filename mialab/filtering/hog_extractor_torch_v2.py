@@ -437,6 +437,10 @@ class HOGExtractorGPU(fltr.Filter):
         # Detach the features from the computational graph, write the memory to the RAM and
         # cast the features to be a np.ndarray
         features_np = features.detach().cpu().numpy()
+
+        del features
+        torch.cuda.empty_cache()
+
         features_np = np.squeeze(features_np)  # torch.Size([64, 195, 231, 195])
         features_np = np.transpose(features_np, (1, 2, 3, 0))  # torch.Size([195, 231, 195, 64])
 
