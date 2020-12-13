@@ -170,9 +170,11 @@ class SimpleHOGModule(nn.Module):
 
         #   cord_z, cord_y, cord_x = are the starting-window-coordinates of the padded image
         # and correspond to the central window coordinates on the original image
+
         # ------------------------------------
         eps = sys.float_info.epsilon
         with torch.no_grad():
+
             # x torch => torch.Size([3, 181, 217, 181])
 
             #   magnitude
@@ -357,12 +359,16 @@ class SimpleHOGModule(nn.Module):
             theta_upper_ind_fracs_f_3 = torch.transpose(theta_upper_ind_fracs_f_3, 1, 2)
 
             # freeing up unused tensors from memory
+            n, c, d, h, w = x.shape
+            del out
+            del x
             del int_indices
             del composed_frac_parts
             del mag
             del phi
             del theta
             torch.cuda.empty_cache()
+
             t = torch.cuda.get_device_properties(0).total_memory
             c = torch.cuda.memory_cached(0)
             a = torch.cuda.memory_allocated(0)
@@ -377,7 +383,7 @@ class SimpleHOGModule(nn.Module):
             # print(low_p_ordered_by_low_t.size())
 
             # bin assignment
-            n, c, d, h, w = x.shape
+
             out_plus_bins = torch.zeros(  # torch.Size([1, 8, 8, 195, 231, 195])
                 (n, self.theta_bins, self.phi_bins, d + 2 * offset - 2, h + 2 * offset - 2, w + 2 * offset - 2),
                 dtype=torch.float, device=x.device)
