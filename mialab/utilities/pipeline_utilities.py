@@ -14,7 +14,7 @@ from skimage import feature
 
 import mialab.data.structure as structure
 import mialab.filtering.feature_extraction as fltr_feat
-import mialab.filtering.hog_extractor_torch_v2 as fltr_hog
+# import mialab.filtering.hog_extractor_torch_v2 as fltr_hog
 from radiomics import glcm, firstorder
 import mialab.filtering.postprocessing as fltr_postp
 import mialab.filtering.preprocessing as fltr_prep
@@ -85,6 +85,11 @@ class FeatureExtractor:
 
         # dir 'features' is a sub-dir of a given image, containing image-features
         self.feature_path = os.path.join(self.img.path, 'features')
+
+        sitk.WriteImage(self.img.images[structure.BrainImageTypes.T1w],
+                        os.path.join(self.feature_path, 'pre_processed_' + self.img.id_ + 'T1w' +'.nii.gz'))
+        sitk.WriteImage(self.img.images[structure.BrainImageTypes.T2w],
+                        os.path.join(self.feature_path, 'pre_processed_' + self.img.id_ + 'T2w' + '.nii.gz'))
 
         if self.save_features:
 
