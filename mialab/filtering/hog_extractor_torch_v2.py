@@ -170,9 +170,11 @@ class SimpleHOGModule(nn.Module):
 
         #   cord_z, cord_y, cord_x = are the starting-window-coordinates of the padded image
         # and correspond to the central window coordinates on the original image
+
         # ------------------------------------
         eps = sys.float_info.epsilon
         with torch.no_grad():
+
             # x torch => torch.Size([3, 181, 217, 181])
 
             #   magnitude
@@ -318,6 +320,7 @@ class SimpleHOGModule(nn.Module):
             theta_upper_ind_fracs_f_3.scatter_(1, int_indices[:, :, 1, :, :, :],
                                                torch.mul(composed_frac_parts[:, 3, :, :, :], mag))
 
+
             # print('=' * 10)
             # print(int_indices[:, :, 2, :, :, :].size())
             # print(int_indices[:, :, 0, :, :, :].size())
@@ -355,13 +358,35 @@ class SimpleHOGModule(nn.Module):
             theta_upper_ind_fracs_f_3 = torch.unsqueeze(theta_upper_ind_fracs_f_3, dim=0)
             theta_upper_ind_fracs_f_3 = torch.transpose(theta_upper_ind_fracs_f_3, 1, 2)
 
+            # freeing up unused tensors from memory
+            n, c, d, h, w = x.shape
+            del out
+            del x
+            del int_indices
+            del composed_frac_parts
+            del mag
+            del phi
+            del theta
+            torch.cuda.empty_cache()
+
+            t = torch.cuda.get_device_properties(0).total_memory
+            c = torch.cuda.memory_cached(0)
+            a = torch.cuda.memory_allocated(0)
+            f = c - a  # free inside cache
+            print('='*10)
+            print(t)
+            print(c)
+            print(a)
+            print(f)
+            print('='*10)
+
             # print(low_p_ordered_by_low_t.size())
 
             # bin assignment
-            n, c, d, h, w = x.shape
+
             out_plus_bins = torch.zeros(  # torch.Size([1, 8, 8, 195, 231, 195])
                 (n, self.theta_bins, self.phi_bins, d + 2 * offset - 2, h + 2 * offset - 2, w + 2 * offset - 2),
-                dtype=torch.float, device=x.device)
+                dtype=torch.float, device=theta_upper_ind_fracs_f_3.device)
 
             # print('=' * 10)
             # print(out_plus_bins.size())
@@ -428,6 +453,10 @@ class HOGExtractorGPU(fltr.Filter):
         # Detach the features from the computational graph, write the memory to the RAM and
         # cast the features to be a np.ndarray
         features_np = features.detach().cpu().numpy()
+
+        del features
+        torch.cuda.empty_cache()
+
         features_np = np.squeeze(features_np)  # torch.Size([64, 195, 231, 195])
         features_np = np.transpose(features_np, (1, 2, 3, 0))  # torch.Size([195, 231, 195, 64])
 
@@ -466,6 +495,7 @@ def is_odd(nr):
         return False
     else:
         return True
+
 
 # val = torch.tensor(6.34 * 10)
 # val1 = val.floor().long() % 10
@@ -574,7 +604,7 @@ def is_odd(nr):
 # # new dimensions x, y, z = (181, 217, 179)
 # hog_extractor = HOGExtractorGPU(image1)
 # image_out = hog_extractor.execute(image1)
-# # --------------------------------------------------------------------
+# --------------------------------------------------------------------
 # file_name = 'image_hog_final_3d_avg.nii.gz'
 # sitk.WriteImage(sitk.RescaleIntensity(image_out), file_name)
 # ----------------------------------------------------------------------
