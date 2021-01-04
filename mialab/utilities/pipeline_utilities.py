@@ -14,7 +14,7 @@ from skimage import feature
 
 import mialab.data.structure as structure
 import mialab.filtering.feature_extraction as fltr_feat
-import mialab.filtering.hog_extractor_torch as fltr_hog
+import mialab.filtering.hog_extractor_torch_v2 as fltr_hog
 from radiomics import glcm, firstorder
 import mialab.filtering.postprocessing as fltr_postp
 import mialab.filtering.preprocessing as fltr_prep
