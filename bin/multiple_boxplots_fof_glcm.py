@@ -8,18 +8,6 @@ import re
 matplotlib.use('Agg')
 
 
-def set_box_format(bp, color):
-    plt.setp(bp['boxes'], color=color)
-    plt.setp(bp['whiskers'], color=color)
-    plt.setp(bp['caps'], color=color)
-    plt.setp(bp['caps'], linewidth=0)
-    plt.setp(bp['medians'], color=color)
-    plt.setp(bp['medians'], linewidth=1.5)
-    plt.setp(bp['fliers'], marker='.')
-    plt.setp(bp['fliers'], markerfacecolor='black')
-    plt.setp(bp['fliers'], alpha=1)
-
-
 class selected_features:
 
     def __init__(self):
@@ -75,7 +63,7 @@ class selected_features:
 
 
 def boxplot(file_path: str, data: dict, title: str, used_metric: str, x_label: str, y_label: str,
-            x_ticks: tuple, min_: float = None, max_: float = None, latex_mode=False):
+            x_ticks: tuple, min_: float = None, max_: float = None):
     """Generates a boxplot for the chosen metric (y axis) comparing all the different tests for the chosen label (x-axis)
 
            Args:
@@ -111,7 +99,7 @@ def boxplot(file_path: str, data: dict, title: str, used_metric: str, x_label: s
     if test_len != len(x_ticks):
         raise ValueError('arguments data and x_ticks need to have compatible lengths')
 
-    fig, ax = plt.subplots(figsize=(16, 6))
+    fig, ax = plt.subplots(figsize=(20, 10))
     fig.subplots_adjust(left=0.075, right=0.95, top=0.9, bottom=0.25)
 
     ax.boxplot(concat_data, vert=1, widths=0.6)
@@ -120,24 +108,50 @@ def boxplot(file_path: str, data: dict, title: str, used_metric: str, x_label: s
     ax.yaxis.grid(True, linestyle='-', which='major', color='lightgrey',
                   alpha=0.5)
 
-    if latex_mode:
-        pass
-        # matplotlib.rc('font', **{'family': 'sans-serif', 'sans-serif': ['Helvetica']})
-        # matplotlib.rc('text', usetex=True)
-
     # set and format title, labels, and ticks
-    ax.set_title(title, fontweight='bold', fontsize=12)
-    ax.set_ylabel(y_label, fontweight='bold', fontsize=12)
+    ax.set_title(title, fontweight='bold', fontsize=14, pad=20)
+    ax.set_ylabel(y_label, fontweight='bold', fontsize=12, labelpad=20)
 
-    ax.set_xlabel(x_label, fontweight='bold', fontsize=9.5)
+    # ax.set_xlabel(x_label, fontweight='bold', fontsize=9.5)
     ax.yaxis.set_tick_params(labelsize=12)
 
     # forming x_ticks
     x_tick_l = []
     for x in range(len(x_ticks)):
-        x_tick_l.extend(['{}'.format(x_ticks[x])])
+        if x_ticks[x] == 'a_baseline':  # in case of baseline
+            x_tick_l.extend(['Baseline'])
 
-    ax.set_xticklabels(x_tick_l, fontdict={'fontsize': 8, 'fontweight': 'bold'}, rotation=35, fontsize=8,
+        elif x_ticks[x] == 'MeanAbsoluteDeviation':  # in case of Mean Absolute Deviation
+            x_tick_l.extend(['Mean A.D.'])
+
+        elif x_ticks[x] == 'RobustMeanAbsoluteDeviation':  # in case of Robust Mean Absolute Deviation
+            x_tick_l.extend(['Robust Mean A.D.'])
+
+        elif x_ticks[x][0].isdigit():  # in case of 10percentile, ...
+
+            # Separating numbers from letters
+            tick = re.sub("[A-Za-z]+", lambda ele: " " + ele[0] + " ", x_ticks[x])
+            ind_last_char = 0
+            # adding th after percentile numbers
+            for ind_char in range(len(tick)):
+                if not tick[ind_char].isdigit():
+                    ind_last_char = ind_char
+                    break
+            tick = tick[:ind_last_char] + 'th' + tick[ind_last_char:]
+
+            # spacing words by uppercase
+            tick = ''.join(' ' + char if char.isupper() else char.strip() for char in tick).strip()
+            x_tick_l.extend(['{}'.format(tick)])
+
+        # in case of 2 or more words merged, except if it's MMC
+        elif sum(1 for c in x_ticks[x] if c.isupper()) > 1 and len(x_ticks[x]) > 3:
+            tick = ''.join(' ' + char if char.isupper() else char.strip() for char in x_ticks[x]).strip()
+            x_tick_l.extend(['{}'.format(tick)])
+
+        else:  # otherwise (in case of having only one word in the string)
+            x_tick_l.extend(['{}'.format(x_ticks[x])])
+
+    ax.set_xticklabels(x_tick_l, fontdict={'fontsize': 8, 'fontweight': 'bold'}, rotation=35, fontsize=10,
                        linespacing=1.5)
 
     # remove frame
@@ -167,14 +181,24 @@ def format_data(data, label: str, metric: str):
 
 def metric_to_readable_text(metric: str):
     if metric == 'DICE':
+        return 'Dice coefficient [-]'
+    elif metric == 'HDRFDST':
+        return 'Hausdorff distance [mm]'
+    else:
+        raise ValueError('Metric "{}" unknown'.format(metric))
+
+
+def metric_to_readable_text_title(metric: str):
+    if metric == 'DICE':
         return 'Dice coefficient'
     elif metric == 'HDRFDST':
-        return 'Hausdorff distance (mm)'
+        return 'Hausdorff distance'
     else:
         raise ValueError('Metric "{}" unknown'.format(metric))
 
 
 # this function was taken from slack https://stackoverflow.com/questions/2669059/how-to-sort-alpha-numeric-set-in-python
+# and used to order the crawled filenames in the preferred way
 def sorted_nicely(l):
     """ Sort the given iterable in the way that humans expect."""
     convert = lambda text: int(text) if text.isdigit() else text
@@ -182,32 +206,13 @@ def sorted_nicely(l):
     return sorted(l, key=alphanum_key)
 
 
-# def split_folders(l):
-#
-#     sorted_dirs = sorted_nicely(l)
-#     fof_l, sof_l = [], []
-#     features = selected_features()
-#     for directory in sorted_dirs:
-#         for fof in features.GetFofList():
-#             # print('la')
-#             # print(fof)
-#             if directory == fof:
-#                 fof_l.append(directory)
-#                 break
-#         for sof in features.GetSofList():
-#             if directory == sof:
-#                 sof_l.append(directory)
-#                 break
-#     print(fof_l)
-#     print(sof_l)
-#     return fof_l, sof_l
-
 def read_data_feature_list(path_folder: str, result_filename='results.csv', include_baseline=False):
     """ Reads data from a folder containing a sub-folder for each test
 
            Args:
                path_folder (str): the folder from which to crawl the the results file
                result_filename (str): the name of the csv file inside each sub-folder
+               include_baseline (bool): whether or not to include the baseline features
 
            Returns:
                dfs (list): a list containing the loaded values according to the sub-folder order
@@ -223,13 +228,8 @@ def read_data_feature_list(path_folder: str, result_filename='results.csv', incl
     if include_baseline:
         dirs_fof.insert(0, 'a_baseline')
         dirs_sof.insert(0, 'a_baseline')
-    # print(dirs)
-    # print(dirs_fof)
-    # print('la')
-    # print(dirs)
 
-    # read through FOF's
-
+    # read through FOFs
     for feature_name in dirs_fof:
         dir_path = os.path.join(path_folder, feature_name)
         print(dir_path)
@@ -237,29 +237,28 @@ def read_data_feature_list(path_folder: str, result_filename='results.csv', incl
         dfs_fof.append(pd.read_csv(os.path.join(dir_path, result_filename), sep=';'))
         print(os.path.join(dir_path, result_filename))
 
-    print('finished')
-    # read through SOF's
+    # read through SOFs
     for feature_name in dirs_sof:
         dir_path = os.path.join(path_folder, feature_name)
-        print(dir_path)
+
         methods_sof.append(feature_name)
         dfs_sof.append(pd.read_csv(os.path.join(dir_path, result_filename), sep=';'))
-        print(os.path.join(dir_path, result_filename))
 
     return dfs_fof, dfs_sof, methods_fof, methods_sof
 
 
 def read_data_features(path_folder: str, result_filename='results.csv'):
-    """ Reads data from a folder containing a sub-folder for each feature (fof and glcm)
+    """ Reads data from a folder containing a subfolder for each feature (FOFs and GLCMs)
 
            Args:
-               path_folder (str): the folder from which to crawl the the results file
-               result_filename (str): the name of the csv file inside each sub-folder
+               path_folder (str): the folder in which to crawl the results file
+               result_filename (str): the name of the csv file inside each subfolder
 
            Returns:
-               dfs (list): a list containing the loaded values according to the sub-folder order
-               methods (list): a list containing the names of the methods used (= the names of the sub-folders)
+               dfs (list): a list containing the loaded values according to the subfolder order
+               methods (list): a list containing the names of the used methods (= the names of the subfolders)
     """
+
     dfs = []
     methods = []
     for root, dirs, _ in os.walk(path_folder, topdown=True):
@@ -276,13 +275,11 @@ def read_data_features(path_folder: str, result_filename='results.csv'):
 
 def main(path_folder, plot_dir: str):
     metrics = ('DICE', 'HDRFDST')  # the metrics we want to plot the results for
-    # metrics_yaxis_limits = (
-    # (0.0, 1.0), (0.0, None))  # tuples of y-axis limits (min, max) for each metric. Use None if unknown
 
     metrics_yaxis_limits = ((0.0, 1.0), (0.0, None))
 
     labels = ('WhiteMatter', 'Amygdala', 'GreyMatter', 'Hippocampus',
-              'Thalamus')  # the brain structures/tissues you are interested in
+              'Thalamus')  # the brain structures/tissues which we are plotting
 
     # load the CSVs
     #   TODO: change include_baseline to true to include its results in the boxplot
@@ -292,10 +289,9 @@ def main(path_folder, plot_dir: str):
     methods_fof = tuple(methods_fof)
     methods_sof = tuple(methods_sof)
 
-    title = 'Evaluation metrics for all RF parameters on {}'
+    title = '{} for {}'
 
     # loading data in a nested dictionary
-    # fof
     concat_data_fof = {}
     for metric in metrics:
         sub_dict = {}
@@ -318,19 +314,14 @@ def main(path_folder, plot_dir: str):
     data = [concat_data_fof, concat_data_sof]
     methods = [methods_fof, methods_sof]
     methods_as_strings = ['FOF', 'SOF']
-    print('-'*10)
+    print('-' * 10)
     for feature, method, method_str in zip(data, methods, methods_as_strings):
-        print(len(method))
-        print(len(feature['DICE']['WhiteMatter']))
-        # print(len(method))
-        # print(len(feature))
         for label in labels:
             for metric, (min_, max_) in zip(metrics, metrics_yaxis_limits):
                 print(metric + ' ' + label)
-                # sub_concat_data = concat_data[metric][label]
                 boxplot(os.path.join(plot_dir, '{}_{}_{}.png'.format(method_str, metric, label)),
                         feature,
-                        title.format('all brain structures'),
+                        title.format(metric_to_readable_text_title(metric), label),
                         metric,
                         label,
                         metric_to_readable_text(metric),

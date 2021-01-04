@@ -56,35 +56,18 @@ def boxplot(file_path: str, data: dict, title: str, used_metric: str, x_label: s
 
     # set and format title, labels, and ticks
     ax.set_title(title, fontweight='bold', fontsize=16, pad=20)
-    ax.set_ylabel(y_label, fontweight='bold', fontsize=15, labelpad=20)
+    ax.set_ylabel(y_label, fontweight='bold', fontsize=14, labelpad=20)
 
-    # ax.set_xlabel(x_label, fontweight='bold', fontsize=9.5)
-    ax.yaxis.set_tick_params(labelsize=15)
+    ax.set_xlabel('RF parameters (number of estimators, tree depth)', fontweight='bold', fontsize=14, labelpad=25)
+    ax.yaxis.set_tick_params(labelsize=14)
 
-    # forming x_ticks
     x_tick_l = []
+    for x in range(len(x_ticks)):
+        rf_params = [int(s) for s in x_ticks[x].split('_') if s.isdigit()]
+        x_tick_l.extend(['({}, {})'.format(rf_params[0], rf_params[1])])
 
-    for x in range(
-            len(x_ticks)):
-
-        if x_ticks[x] == 'a_baseline':
-            x_tick_l.extend(['{}'.format('Baseline')])
-
-        elif x_ticks[x] == 'fof_features':
-            x_tick_l.extend(['{}'.format('Baseline \n and \n selected FO features')])
-
-        elif x_ticks[x] == 'glcm_features':
-            x_tick_l.extend(['{}'.format('Baseline \n and \n selected GLCM features')])
-
-        elif x_ticks[x] == 'fof_glcm_features':
-            x_tick_l.extend(['{}'.format('Baseline, \n selected FO features \n and \n Selected GLCM features')])
-
-        elif x_ticks[x] == 'all_features':
-            x_tick_l.extend(['{}'.format('Baseline, \n all FO features \n and \n all GLCM features')])
-
-    ax.set_xticklabels(x_tick_l, fontdict={'fontsize': 13, 'fontweight': 'bold'}, rotation=0, fontsize=13,
+    ax.set_xticklabels(x_tick_l, fontdict={'fontsize': 10, 'fontweight': 'bold'}, rotation=35, fontsize=10,
                        linespacing=1.5)
-    ax.tick_params(axis='x', which='major', pad=15)
 
     # remove frame
     ax.spines['top'].set_visible(False)
@@ -120,6 +103,15 @@ def metric_to_readable_text(metric: str):
         raise ValueError('Metric "{}" unknown'.format(metric))
 
 
+def label_to_readable_text(label: str):
+    if label == 'WhiteMatter':
+        return 'White Matter'
+    elif label == 'GreyMatter':
+        return 'Grey Matter'
+    else:
+        return label
+
+
 def metric_to_readable_text_title(metric: str):
     if metric == 'DICE':
         return 'Dice coefficient'
@@ -138,31 +130,28 @@ def sorted_nicely(l):
     return sorted(l, key=alphanum_key)
 
 
-def read_data_feature_list(path_folder: str):
-    """ Reads data from a folder containing a sub-folder for each test
+def read_data_features(path_folder: str, result_filename='results.csv'):
+    """ Reads data from a folder containing a sub-folder for each feature (fof and glcm)
 
            Args:
-               path_folder (str): the folder in which to crawl the results file
+               path_folder (str): the folder from which to crawl the the results file
+               result_filename (str): the name of the csv file inside each sub-folder
 
            Returns:
-               dfs (list): a list containing the loaded values according to the subfolder order
-               methods (list): a list containing the names of the used methods (= the names of the subfolders)
+               dfs (list): a list containing the loaded values according to the sub-folder order
+               methods (list): a list containing the names of the methods used (= the names of the sub-folders)
     """
-
-    dfs, methods = [], []
-
-    dirs = ['a_baseline', 'fof_features', 'glcm_features', 'fof_glcm_features', 'all_features']
-    for dir_i in dirs:
-        methods.append(dir_i)
-        sub_path = os.path.join(path_folder, dir_i + '/results.csv')
-        print(sub_path)
-        dfs.append(pd.read_csv(sub_path, sep=';'))
-
-    print(methods)
-    print(len(methods))
-    print(len(dfs))
-    print('finished')
-
+    dfs = []
+    methods = []
+    for root, dirs, _ in os.walk(path_folder, topdown=True):
+        dirs = sorted_nicely(dirs)
+        for dir_i in dirs:
+            methods.append(dir_i)
+            for sub_root, sub_dir, filenames in os.walk(os.path.join(root, dir_i)):
+                for filename in filenames:
+                    if filename == result_filename:
+                        # print(os.path.join(sub_root, filename))
+                        dfs.append(pd.read_csv(os.path.join(sub_root, filename), sep=';'))
     return dfs, methods
 
 
@@ -175,11 +164,13 @@ def main(path_folder, plot_dir: str):
               'Thalamus')  # the brain structures/tissues which we are plotting
 
     # load the CSVs
-    dfs, methods = read_data_feature_list(path_folder)
+    #   TODO: change include_baseline to true to include its results in the boxplot
+    dfs, methods = read_data_features(path_folder)
 
     # some parameters to improve the plot's readability
     methods = tuple(methods)
-    title = '{} for {}'
+
+    title = 'Grid search of RF parameters: {} for {}'
 
     # loading data in a nested dictionary
     concat_data = {}
@@ -188,17 +179,17 @@ def main(path_folder, plot_dir: str):
         for label in labels:
             concat_data.update({metric: {}})
             sub_dict.update({label: [format_data(df, label, metric) for df in dfs]})
-
         concat_data.update({metric: sub_dict})
-    print(len(concat_data['DICE']['WhiteMatter']))
 
+    print(len(concat_data['DICE']['WhiteMatter']))
     print('-' * 10)
+
     for label in labels:
         for metric, (min_, max_) in zip(metrics, metrics_yaxis_limits):
             print(metric + ' ' + label)
-            boxplot(os.path.join(plot_dir, 'Combo_{}_{}.png'.format(metric, label)),
+            boxplot(os.path.join(plot_dir, '{}_{}.png'.format(metric, label)),
                     concat_data,
-                    title.format(metric_to_readable_text_title(metric), label),
+                    title.format(metric_to_readable_text_title(metric), label_to_readable_text(label)),
                     metric,
                     label,
                     metric_to_readable_text(metric),

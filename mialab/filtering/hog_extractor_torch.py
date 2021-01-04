@@ -1,24 +1,19 @@
-import os
-import stat
+import math
 import sys
-import time
 import SimpleITK as sitk
 import numpy as np
 from pymia.filtering.filter import FilterParams
-
-from exercise.exercise_simpleitk import load_image
-import scipy.ndimage.filters as fltrs
-import matplotlib.pyplot as plt
 import pymia.filtering.filter as fltr
-import imageio
-import shutil
-import multiprocessing as mp
-import datetime
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
+
+''' (Not used in the MIALab presentation/article)
+This was our final implementation of the HOG feature extractor. Despite being implemented on pytorch, it was not adapted 
+to the GPU usage because, meanwhile, we opted not to include it in our research experiments. Moreover, the HOG images
+obtained for a few tested MRIs seem to be correct.
+'''
 
 
 # Useful link: https://www.learnopencv.com/histogram-of-oriented-gradients/
@@ -27,7 +22,8 @@ from torch import Tensor
 
 class SimpleHOGModule(nn.Module):
 
-    def __init__(self, image: sitk.Image, theta_bins=8, phi_bins=8, block_size=15, stride: int = 1):
+    def __init__(self, image: sitk.Image, theta_bins=8, phi_bins=8, block_size=15, stride: int = 1,
+                 max_phi_angle=math.pi):
         """Initializes a new instance of the Hog_3D_extractor class.
 
         Args:
@@ -46,6 +42,7 @@ class SimpleHOGModule(nn.Module):
         self.phi_bins = phi_bins
         self.block_size = block_size
         self.stride = stride
+        self.max_phi_angle = max_phi_angle
         self.output_convolved_images = []
         #   these lens are the ranges of angle values that each histogram bin can receive
         self.theta_bin_len = (2 * np.math.pi) / self.theta_bins
@@ -56,8 +53,6 @@ class SimpleHOGModule(nn.Module):
         # Calculates the number of blocks that fit in the image in each dimension
         # ==========================
         img_arr_shape = sitk.GetArrayFromImage(image).shape
-
-        # maximal coordinates that can be reached (inclusive)
         or_z = img_arr_shape[0] - 1
         or_y = img_arr_shape[1] - 1
         or_x = img_arr_shape[2] - 1
@@ -128,6 +123,8 @@ class SimpleHOGModule(nn.Module):
         if torch.cuda.is_available():
             self.mat = self.mat.cuda()
         self.register_buffer("weight", self.mat)
+        offset = self.block_size // 2
+        self.pooler = nn.AvgPool3d(block_size, stride=stride, padding=offset, ceil_mode=False, count_include_pad=False)
 
     def forward(self, x: torch.Tensor):
 
@@ -138,9 +135,7 @@ class SimpleHOGModule(nn.Module):
 
         # Render the tensor shape appropriate
         x = torch.unsqueeze(torch.unsqueeze(x, dim=0), dim=0)
-        # print(x.size())
-        # print(x.shape[5])
-        # print(x.dtype)
+
         # Check if the input tensor x has the correct number of dimensions
         # The input tensor must be of shape [batch, ch_in, iT, iH, iW, feature set]
         if x.ndim != 5:
@@ -149,163 +144,209 @@ class SimpleHOGModule(nn.Module):
             raise ValueError(f'The number of input channels is not correct ({x.shape[1]} instead of 1)!')
 
         # Convolve the input tensor with the weights and remove the first dimension
-        out = F.conv3d(x, self.weight, None, self.stride, padding=1)
-        out = torch.squeeze(out, dim=0)
+        offset = self.block_size // 2 + 1
+        padding = [offset, offset, offset]
+        out = F.conv3d(x, self.weight, None, self.stride, padding=padding)
+        out = torch.squeeze(out, dim=0)  # - torch.Size([3, 195, 231, 195])
 
-        # Retrieving convolved images
-        img_conv_z = out[0]
-        img_conv_y = out[1]
-        img_conv_x = out[2]
-
-        # creating the output tensor
-        new_size = list(x.size())
-        new_size.append(self.theta_bins * self.phi_bins)
-        out_arr = torch.zeros(new_size, dtype=x.dtype)
+        # convoluted arrays in z, y x = out[0], out[1], out[2]
 
         #   cord_z, cord_y, cord_x = are the starting-window-coordinates of the padded image
         # and correspond to the central window coordinates on the original image
+
+        # ------------------------------------
+        eps = sys.float_info.epsilon
         with torch.no_grad():
-            for z in range(self.nr_block_z):
-                cord_z = int(self.stride * z)
 
-                for y in range(self.nr_block_y):
-                    cord_y = int(self.stride * y)
+            #   magnitude
+            mag = out.norm(p="fro", dim=0)
 
-                    for x in range(self.nr_block_x):
-                        cord_x = int(self.stride * x)
+            #   theta
+            theta = torch.atan2(out[1], out[2])
 
-                        # Calculates the HOG-features for a 3D block in the image.
+            # phi
+            phi = torch.acos(torch.div(out[0], mag + eps))
+            mag = torch.unsqueeze(torch.unsqueeze(mag, dim=0), dim=0)
+            theta = torch.unsqueeze(torch.unsqueeze(theta, dim=0), dim=0)
+            phi = torch.unsqueeze(torch.unsqueeze(phi, dim=0), dim=0)
 
-                        # z, y, x are the starting coordinates of each block on the overall image
-                        #   histogram matrix
-                        h_bin_set = torch.zeros((self.theta_bins, self.phi_bins))
-                        eps = sys.float_info.epsilon
+            # Binning Mag with linear interpolation
+            theta_raw_ind = (theta / self.max_phi_angle * self.phi_bins)
+            theta_frac_ind = torch.frac(theta_raw_ind)
 
-                        for zz in range(cord_z, cord_z + self.block_size):
-                            for yy in range(cord_y, cord_y + self.block_size):
-                                for xx in range(cord_x, cord_x + self.block_size):
+            phi_raw_ind = (phi / self.max_phi_angle * self.phi_bins)
+            phi_frac_ind = torch.frac(phi_raw_ind)
 
-                                    #   magnitude
-                                    r = \
-                                        np.sqrt(img_conv_x[zz, yy, xx] ** 2 + img_conv_y[zz, yy, xx] ** 2 + img_conv_z[
-                                            zz, yy, xx] ** 2)
-                                    #   theta
-                                    theta = \
-                                        np.math.atan(img_conv_y[zz, yy, xx] / (img_conv_x[zz, yy, xx] + eps))
-                                    #   phi
-                                    phi = \
-                                        np.math.acos(img_conv_z[zz, yy, xx] / (r + eps))
-                                    #   updating histogram matrix
+            # --------------------------
+            # creating a torch containing lower and upper indices for theta and phi (4 dimensions)
+            # torch will be like this [theta lower ind, theta upper ind, phi lower ind, phi upper ind]
 
-                                    # --------------
-                                    # def bin_assignment(self, r, theta, phi, h_bin_set):
+            conv, d, h, w = out.size()
+            int_indices = torch.zeros(4, d, h, w, dtype=torch.int64, device=x.device)  # torch.Size([4, 195, 231, 195])
+            int_indices = torch.unsqueeze(int_indices, 0)  # torch.Size([1, 4, 195, 231, 195])
 
-                                    theta_split, phi_split = True, True
-                                    low_t_bin_ratio, high_t_bin_ratio, low_p_bin_ratio, high_p_bin_ratio = None, None, None, None
+            # theta indices
+            #   lower theta indices (0)
+            int_indices[0, 0, :, :, :] = theta_raw_ind.floor().long() % self.theta_bins
+            #   upper theta indices (1)
+            int_indices[0, 1, :, :, :] = theta_raw_ind.ceil().long() % self.theta_bins
 
-                                    # ----- theta -----
-                                    theta = angle_normalizer(theta, 0, 2 * np.pi)
-                                    theta_raw_index = theta / self.theta_bin_len
-                                    low_t_bin_index = int(np.floor(theta_raw_index))
+            # phi indices
+            #   lower phi indices   (2)
+            int_indices[0, 2, :, :, :] = phi_raw_ind.floor().long() % self.phi_bins
+            #   upper phi indices   (3)
+            int_indices[0, 3, :, :, :] = phi_raw_ind.ceil().long() % self.phi_bins
 
-                                    # in case theta index > max index, go back to origin
-                                    if low_t_bin_index == self.theta_bins:
-                                        low_t_bin_index = 0
+            # int_indices = torch.unsqueeze(int_indices, dim=0)
 
-                                    #   defining adjacent bin indices for magnitude assignment in case of splitting
-                                    if np.modf(theta_raw_index)[0] <= 0.5:
-                                        low_t_bin_ratio = np.modf(theta_raw_index)[0]
-                                        high_t_bin_ratio = 1 - np.modf(theta_raw_index)[0]
-                                    elif np.modf(theta_raw_index)[0] > 0.5:
-                                        low_t_bin_ratio = 1 - np.modf(theta_raw_index)[0]
-                                        high_t_bin_ratio = np.modf(theta_raw_index)[0]
-                                    else:
-                                        theta_split = False
+            # convert int indices to int64
 
-                                    # ----- phi -----
-                                    phi = angle_normalizer(phi, 0, np.pi)
-                                    phi_raw_index = phi / self.phi_bin_len
-                                    low_p_bin_index = int(np.floor(phi_raw_index))
+            # -------------------------- creating a torch containing the "fractional parts" (%) of lower and upper
+            # indices for theta and phi (4 dimensions)
+            # torch will be like this [% theta, 1 - % theta, % phi, 1 - % phi]
 
-                                    # in case phi index > max index, go back to origin
-                                    if low_p_bin_index == self.phi_bins:
-                                        low_p_bin_index = 0
+            frac_parts = torch.zeros(int_indices.size(), device=x.device)
 
-                                    #   defining adjacent bin indices for magnitude assignment in case of splitting
-                                    if 0 < np.modf(theta_raw_index)[0] <= 0.5:
-                                        low_p_bin_ratio = np.modf(theta_raw_index)[0]
-                                        high_p_bin_ratio = 1 - np.modf(theta_raw_index)[0]
-                                    elif 1 > np.modf(theta_raw_index)[0] > 0.5:
-                                        low_p_bin_ratio = 1 - np.modf(theta_raw_index)[0]
-                                        high_p_bin_ratio = np.modf(theta_raw_index)[0]
-                                    else:
-                                        phi_split = False
+            # theta fractions
+            #   lower theta         (0)
+            frac_parts[:, 0, :, :, :] = torch.abs(theta_frac_ind)
+            #   upper theta         (1)
+            frac_parts[:, 1, :, :, :] = torch.abs(1 - theta_frac_ind)
 
-                                    # ----- 4 possible 2D histogram splitting cases -----
+            # phi fractions
+            #   lower phi           (2)
+            frac_parts[:, 2, :, :, :] = torch.abs(phi_frac_ind)
+            #   upper phi           (3)
+            frac_parts[:, 3, :, :, :] = torch.abs(1 - phi_frac_ind)
 
-                                    # 1) when both phi and theta fit exactly in 1 bin
-                                    if not theta_split and not phi_split:
-                                        h_bin_set[low_t_bin_index][low_p_bin_index] += r
+            # -------------------------- creating a torch containing the "composed fractional parts" (%) of lower and
+            # upper indices for theta and phi (4 dimensions) torch will be like this:
+            # [(% theta) x (% phi),   (% theta) x (1 - % phi),  (1 - % theta) x (% phi),  (1 - % theta) x (1 - % phi)]
 
-                                    # 2) when only theta is split in 2
-                                    elif theta_split and not phi_split:
+            composed_frac_parts = torch.zeros(int_indices.size(), device=x.device)
 
-                                        # in case theta is split between last and origin bin
-                                        if low_t_bin_index == self.theta_bins - 1:
-                                            high_t_bin_index = 0
-                                        else:
-                                            high_t_bin_index = low_t_bin_index + 1
+            # theta
+            #  (% theta) x (% phi)          (0)
+            composed_frac_parts[:, 0, :, :, :] = torch.mul(frac_parts[0, 0, :, :, :], frac_parts[0, 2, :, :, :])
+            #  (% theta) x (1 - % phi)      (1)
+            composed_frac_parts[:, 1, :, :, :] = torch.mul(frac_parts[0, 0, :, :, :], frac_parts[0, 3, :, :, :])
 
-                                        h_bin_set[low_t_bin_index][low_p_bin_index] += r * low_t_bin_ratio
-                                        h_bin_set[high_t_bin_index][low_p_bin_index] += r * high_t_bin_ratio
+            # phi indices
+            #  (1 - % theta) x (% phi)      (2)
+            composed_frac_parts[:, 2, :, :, :] = torch.mul(frac_parts[0, 1, :, :, :], frac_parts[0, 2, :, :, :])
+            #  (1 - % theta) x (1 - % phi)  (3)
+            composed_frac_parts[:, 3, :, :, :] = torch.mul(frac_parts[0, 1, :, :, :], frac_parts[0, 3, :, :, :])
 
-                                    # 3) when only phi is split in 2
-                                    elif phi_split and not theta_split:
+            # ---------- scattering composed fractions to the right angle (theta or phi)
+            # creating tensors containing theta or phi bins (1)
+            n, c, d, h, w = x.size()
 
-                                        # in case phi is split between last and origin bin
-                                        if low_p_bin_index == self.phi_bins - 1:
-                                            high_p_bin_index = 0
-                                        else:
-                                            high_p_bin_index = low_p_bin_index + 1
+            theta_lower_ind_fracs_f_0 = torch.zeros((1, self.theta_bins,
+                                                     d + 2 * offset - 2, h + 2 * offset - 2, w + 2 * offset - 2),
+                                                    dtype=torch.float, device=x.device)
 
-                                        h_bin_set[low_t_bin_index][low_p_bin_index] += r * low_p_bin_ratio
-                                        h_bin_set[low_t_bin_index][high_p_bin_index] += r * high_p_bin_ratio
+            theta_lower_ind_fracs_f_1 = torch.zeros(theta_lower_ind_fracs_f_0.size(), device=x.device)
 
-                                    # 4) when both phi and theta are split in a 2x2 histogram "block"
-                                    else:
-                                        # in case theta is split between last and origin bin
-                                        if low_t_bin_index == self.theta_bins - 1:
-                                            high_t_bin_index = 0
-                                        else:
-                                            high_t_bin_index = low_t_bin_index + 1
+            theta_upper_ind_fracs_f_2 = torch.zeros(theta_lower_ind_fracs_f_0.size(), device=x.device)
 
-                                        # in case phi is split between last and origin bin
-                                        if low_p_bin_index == self.phi_bins - 1:
-                                            high_p_bin_index = 0
-                                        else:
-                                            high_p_bin_index = low_p_bin_index + 1
+            theta_upper_ind_fracs_f_3 = torch.zeros(theta_lower_ind_fracs_f_0.size(), device=x.device)
 
-                                        # theta-axis wise splitting
-                                        h_bin_set[low_t_bin_index][
-                                            low_p_bin_index] += r * low_t_bin_ratio * low_p_bin_ratio
-                                        h_bin_set[high_t_bin_index][
-                                            low_p_bin_index] += r * high_p_bin_ratio * low_p_bin_ratio
-                                        # phi-axis wise splitting
-                                        h_bin_set[low_t_bin_index][
-                                            high_p_bin_index] += r * low_t_bin_ratio * high_p_bin_ratio
-                                        h_bin_set[high_t_bin_index][
-                                            high_p_bin_index] += r * high_p_bin_ratio * high_p_bin_ratio
+            # phi_upper_ind = torch.zeros(phi_upper_ind.size())
+            # theta_lower_indices # torch.Size([1, theta_bins (1), 195, 231, 195])
 
-                        #   returning histogram as a feature set
-                        out_arr[0, 0, z, y, x] = torch.flatten(h_bin_set)
-            #             print(out_arr[0, 0, z, y, x])
-                        print('finished 1 x point')
-            # print(out.size())
-            out = torch.squeeze(out_arr, dim=0)
-            return out
+            # compesed fracs to be organized
 
-    def Get_bin_sizes(self):
-        return [self.theta_bins, self.phi_bins]
+            low_p_ordered_by_low_t = torch.zeros((1, self.theta_bins,
+                                                  d + 2 * offset - 2, h + 2 * offset - 2, w + 2 * offset - 2),
+                                                 dtype=torch.int64, device=x.device)
+
+            upper_p_ordered_by_low_t = torch.zeros(low_p_ordered_by_low_t.size(), dtype=torch.int64, device=x.device)
+
+            lower_p_ordered_by_upper_t = torch.zeros(low_p_ordered_by_low_t.size(), dtype=torch.int64, device=x.device)
+
+            upper_p_ordered_by_upper_t = torch.zeros(low_p_ordered_by_low_t.size(), dtype=torch.int64, device=x.device)
+
+            # here we got a set of fractions scattered through the different lower theta indices
+            int_indices = torch.unsqueeze(int_indices, dim=0)
+
+            theta_lower_ind_fracs_f_0.scatter_(1, int_indices[:, :, 0, :, :, :],
+                                               torch.mul(composed_frac_parts[:, 0, :, :, :], mag))
+
+            theta_lower_ind_fracs_f_1.scatter_(1, int_indices[:, :, 0, :, :, :],
+                                               torch.mul(composed_frac_parts[:, 1, :, :, :], mag))
+
+            theta_upper_ind_fracs_f_2.scatter_(1, int_indices[:, :, 1, :, :, :],
+                                               torch.mul(composed_frac_parts[:, 2, :, :, :], mag))
+
+            theta_upper_ind_fracs_f_3.scatter_(1, int_indices[:, :, 1, :, :, :],
+                                               torch.mul(composed_frac_parts[:, 3, :, :, :], mag))
+
+            #                                lower theta indices (0) #   lower phi indices   (2)
+            low_p_ordered_by_low_t.scatter_(1, int_indices[:, :, 0, :, :, :], int_indices[:, :, 2, :, :, :])
+            low_p_ordered_by_low_t = torch.unsqueeze(low_p_ordered_by_low_t, dim=0)
+            low_p_ordered_by_low_t = torch.transpose(low_p_ordered_by_low_t, 1, 2)
+
+            #                                lower theta indices (0) #   upper phi indices   (3)
+            upper_p_ordered_by_low_t.scatter_(1, int_indices[:, :, 0, :, :, :], int_indices[:, :, 3, :, :, :])
+            upper_p_ordered_by_low_t = torch.unsqueeze(upper_p_ordered_by_low_t, dim=0)
+            upper_p_ordered_by_low_t = torch.transpose(upper_p_ordered_by_low_t, 1, 2)
+
+            #                                upper theta indices (1) #   lower phi indices   (2)
+            lower_p_ordered_by_upper_t.scatter_(1, int_indices[:, :, 1, :, :, :], int_indices[:, :, 2, :, :, :])
+            lower_p_ordered_by_upper_t = torch.unsqueeze(lower_p_ordered_by_upper_t, dim=0)
+            lower_p_ordered_by_upper_t = torch.transpose(lower_p_ordered_by_upper_t, 1, 2)
+
+            #                                upper theta indices (1) #   upper phi indices   (3)
+            upper_p_ordered_by_upper_t.scatter_(1, int_indices[:, :, 1, :, :, :], int_indices[:, :, 3, :, :, :])
+            upper_p_ordered_by_upper_t = torch.unsqueeze(upper_p_ordered_by_upper_t, dim=0)
+            upper_p_ordered_by_upper_t = torch.transpose(upper_p_ordered_by_upper_t, 1, 2)
+
+            theta_lower_ind_fracs_f_0 = torch.unsqueeze(theta_lower_ind_fracs_f_0, dim=0)
+            theta_lower_ind_fracs_f_0 = torch.transpose(theta_lower_ind_fracs_f_0, 1, 2)
+
+            theta_lower_ind_fracs_f_1 = torch.unsqueeze(theta_lower_ind_fracs_f_1, dim=0)
+            theta_lower_ind_fracs_f_1 = torch.transpose(theta_lower_ind_fracs_f_1, 1, 2)
+
+            theta_upper_ind_fracs_f_2 = torch.unsqueeze(theta_upper_ind_fracs_f_2, dim=0)
+            theta_upper_ind_fracs_f_2 = torch.transpose(theta_upper_ind_fracs_f_2, 1, 2)
+
+            theta_upper_ind_fracs_f_3 = torch.unsqueeze(theta_upper_ind_fracs_f_3, dim=0)
+            theta_upper_ind_fracs_f_3 = torch.transpose(theta_upper_ind_fracs_f_3, 1, 2)
+
+            # freeing up unused tensors from memory
+            n, c, d, h, w = x.shape
+            del out
+            del x
+            del int_indices
+            del composed_frac_parts
+            del mag
+            del phi
+            del theta
+            torch.cuda.empty_cache()
+
+            t = torch.cuda.get_device_properties(0).total_memory
+            c = torch.cuda.memory_cached(0)
+            a = torch.cuda.memory_allocated(0)
+            f = c - a  # free inside cache
+
+            # bin assignment
+            out_plus_bins = torch.zeros(  # torch.Size([1, 8, 8, 195, 231, 195])
+                (n, self.theta_bins, self.phi_bins, d + 2 * offset - 2, h + 2 * offset - 2, w + 2 * offset - 2),
+                dtype=torch.float, device=theta_upper_ind_fracs_f_3.device)
+
+            # assigning low t x low p
+            out_plus_bins.scatter_(2, low_p_ordered_by_low_t, theta_lower_ind_fracs_f_0)
+            out_plus_bins.scatter_add_(2, upper_p_ordered_by_low_t, theta_lower_ind_fracs_f_1)
+            out_plus_bins.scatter_add_(2, lower_p_ordered_by_upper_t, theta_upper_ind_fracs_f_2)
+            out_plus_bins.scatter_add_(2, upper_p_ordered_by_upper_t, theta_upper_ind_fracs_f_3)
+
+            out_plus_bins = torch.reshape(out_plus_bins, (n, self.theta_bins * self.phi_bins,
+                                                          d + 2 * offset - 2, h + 2 * offset - 2, w + 2 * offset - 2))
+
+            return self.pooler(out_plus_bins)
+
+    def Get_block_size(self):
+        return self.block_size
 
 
 class HOGExtractorGPU(fltr.Filter):
@@ -318,40 +359,29 @@ class HOGExtractorGPU(fltr.Filter):
         # Cast the image to a Pytorch tensor
         image_arr = torch.from_numpy(sitk.GetArrayFromImage(image))
 
-        # print(image_arr.size())
-
         # Compute the 3D-HOG features using Pytorch
         features = self.hog_module(image_arr)
 
         # Detach the features from the computational graph, write the memory to the RAM and
         # cast the features to be a np.ndarray
         features_np = features.detach().cpu().numpy()
+
+        del features
+        torch.cuda.empty_cache()
+
         features_np = np.squeeze(features_np)
+        features_np = np.transpose(features_np, (1, 2, 3, 0))
+
+        image_size = image.GetSize()
+        offset = self.hog_module.Get_block_size() // 2
+
+        features_np = features_np[offset:image_size[2] + offset,
+                      offset:image_size[1] + offset,
+                      offset:image_size[0] + offset]
 
         img_out = sitk.GetImageFromArray(features_np)
         img_out.CopyInformation(image)
         return img_out
-
-
-def angle_normalizer(angle, lower_bound, upper_bound):
-    """Wraps an angle in radians to a specific range of values. Example:
-    angle_normalizer(4*pi, 0, 2*pi) -> 2*pi
-
-    Args:
-        angle (float): the angle in radians to be wrapped
-        lower_bound (float): the starting range value, inclusive
-        upper_bound (float): the ending range value, inclusive
-
-    Returns:
-        float: the normalized angle in radians
-    """
-
-    newAngle = angle
-    while newAngle < lower_bound:
-        newAngle += 2 * np.pi
-    while newAngle > upper_bound:
-        newAngle -= 2 * np.pi
-    return newAngle
 
 
 def is_odd(nr):
@@ -366,115 +396,86 @@ def is_odd(nr):
     else:
         return True
 
-# def info_txt_writer(path: str, filename: str, value):
-#     with open(os.path.join(path, filename + '.txt'), 'w') as outfile:
-#         outfile.write('-' * 37 + '\n')
-#         #   writing running time
-#         rounded_val = round(value, 2)
-#         outfile.write('-' * 10 + ' Running time = ' + str(rounded_val) + ' second(s) ' + '-' * 10)
-#         outfile.write('\n' + '-' * 37)
 
-
-path1 = 'C:/Users/afons/PycharmProjects/MIAlab project/data/train/116524/T1native.nii.gz'
-image1 = load_image(path1, False)
+'''
+testing the HOG feature extractor
+'''
+# ------------ running and saving feature .nii.gz image -----------------
+# path1 = 'C:/Users/afons/PycharmProjects/MIAlab project/data/train/116524/T1native.nii.gz'
+# image1 = sitk.ReadImage(path1, sitk.sitkFloat32)
+# # image1 = load_image(path1, False)
 # image1_np = sitk.GetArrayFromImage(image1)
 # image1 = sitk.GetImageFromArray(image1_np[:179, :, :])
-print(image1.GetSize())
-# new dimensions x, y, z = (181, 217, 179)
-hog_extractor = HOGExtractorGPU(image1)
-hog_extractor.execute(image1)
+# print(image1.GetSize())
+# # new dimensions x, y, z = (181, 217, 179)
+# hog_extractor = HOGExtractorGPU(image1)
+# image_out = hog_extractor.execute(image1)
 
+# --------------------------------------------------------------------
+# file_name = 'image_hog_final_3d_avg.nii.gz'
+# sitk.WriteImage(sitk.RescaleIntensity(image_out), file_name)
+# ----------------------------------------------------------------------
 
-# image1_arr_slice_a = a[98]
-# image1_arr_slice_b = b[98]
-# image1_arr_slice_c = c[98]
-# image1_slice_a = sitk.GetImageFromArray(image1_arr_slice_a)
-# image1_slice_b = sitk.GetImageFromArray(image1_arr_slice_b)
-# image1_slice_c = sitk.GetImageFromArray(image1_arr_slice_c)
-#
-# saving_path = 'C:/Users/afons/OneDrive - Universidade de Lisboa/Erasmus/studies/MIAlab/project/Results_midterm/MIALab_tests/brain_images_torch/after_conv'
-# # sitk.WriteImage(image1_slice_a, os.path.join(saving_path, 'a.png'))
-# # sitk.WriteImage(image1_slice_b, os.path.join(saving_path, 'b.png'))
-# # sitk.WriteImage(image1_slice_c, os.path.join(saving_path, 'c.png'))
-# sitk.WriteImage(sitk.Cast(sitk.RescaleIntensity(image1_slice_a), sitk.sitkUInt8), os.path.join(saving_path, 'a_slice_zeros.png'))
-# sitk.WriteImage(sitk.Cast(sitk.RescaleIntensity(image1_slice_b), sitk.sitkUInt8), os.path.join(saving_path, 'b_slice_zeros.png'))
-# sitk.WriteImage(sitk.Cast(sitk.RescaleIntensity(image1_slice_c), sitk.sitkUInt8), os.path.join(saving_path, 'c_slice_zeros.png'))
+# path1 = 'C:/Users/afons/PycharmProjects\MIAlab project\mialab/filtering\image_hog_final.nii.gz'
+# # image1 = load_image(path1, False)
+# image1 = sitk.ReadImage(path1)
+# # print(image1.GetNumberOfComponentsPerPixel())
+# image1_np = sitk.GetArrayFromImage(image1)
+# print(image1_np[0,0,0])
+# print(image1_np.shape)
+# for i in range(image1_np.shape[3]):
+#     file_name = 'C:/Users/afons\PycharmProjects\MIAlab project\mialab/filtering\hog_v2\image_hog_feature_{}.nii.gz'.format(i)
+#     image = image1_np[:, :, :, i]
+#     image_sitk = sitk.GetImageFromArray(image)
+#     sitk.WriteImage(image_sitk, file_name)
 
-
-# if __name__ == '__main__':
+# # -----------------------
+# path1 = 'C:/Users/afons/PycharmProjects\MIAlab project\mialab/filtering\image_hog_final.nii.gz'
+# # # # image1 = load_image(path1, False)
+# image1 = sitk.ReadImage(path1, sitk.sitkVectorUInt8)    #(181, 217, 181, 64)
+# print(image1.GetNumberOfComponentsPerPixel())
 #
-#     # loading the image
-#     path1 = 'C:/Users/afons/PycharmProjects/MIAlab project/data/train/116524/T1native.nii.gz'
-#     image1 = load_image(path1, False)
+# image1_np = sitk.GetArrayFromImage(image1)
+# ## image1_np = image1_np[105, :, :]
+# print(image1_np.shape)
+# image1 = sitk.GetImageFromArray(image1_np)
+# # sitk.WriteImage(sitk.Cast(image1, sitk.sitkUInt8), 'feat.jpeg')
 #
-#     # ----- testing the algorithm -----
-#     block_size = 15
-#     block_displacement = 20
-
-# confirming equal results when multiprocess = T or F
-
-# file_name_m = 'brain_slice_m.nii'
-# file_name_nm = 'brain_slice_nm.nii'
-# dir_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'mia-result')
-# path_m = os.path.join(dir_path, file_name_m)
-# path_nm = os.path.join(dir_path, file_name_nm)
-#
-# image_m = load_image(path_m, False)
-# print('la')
-# image_nm = load_image(path_nm, False)
-# print('la')
-#
-#
-# A = sitk.GetArrayFromImage(image_m)
-# print('la')
-#
-# B = sitk.GetArrayFromImage(image_nm)
-# print('la')
-#
-# print((A==B).all())
-
-# -----------------------comment / uncomment------------------
-
-# hog_example = HOG_extractor(block_size=block_size, block_displacement=block_displacement)
-# hog_image = hog_example.execute(image1, multiprocessing=False)
-# print('HOG extraction finished')
-#
-# # creating the folder string name where to write the extracted HOG image
-# date = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
-# test_type = '__size_' + str(block_size) + '_disp_' + str(block_displacement)
-# folder_name = date + test_type
-#
-# dir_path = os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'mia-result/HOG_testing'),
-#                         folder_name)
-#
-# # this deletes the dir if exists
-# if os.path.exists(dir_path):
-#     shutil.rmtree(dir_path)
-# os.makedirs(dir_path)
-#
-# full_path = os.path.join(dir_path, 'brain_slice.nii')
-# sitk.WriteImage(hog_image, full_path)
-# print('HOG image saved')
-# info_txt_writer(dir_path, 'running_time', hog_example.GetRunningInfo())
-
-# ------------------------comment / uncomment-----------------
-#
-# getting slice 100
-# image1_arr = sitk.GetArrayFromImage(image1)
-# image1_arr_22 = image1_arr[105]
-# image1_22 = sitk.GetImageFromArray(image1_arr_22)
-#
-# # loading brain slice image
-# image = sitk.ReadImage(os.path.join(new_dir_path, 'brain_slice_105_.nii'))
-# image_arr = sitk.GetArrayFromImage(image)
-# print(image_arr.shape)
+# # print(image1.GetNumberOfComponentsPerPixel())
+# image1_np = sitk.GetArrayFromImage(image1)
+# print(image1_np.shape)  # (181, 217, 181, 64)
+# # print(image1_np[0, 0, 0])
+# # print(image1_np.shape)
 #
 # # saving every feature image
+# import cv2
+# # file_names = []
+# new_dir_path = 'C:/Users/afons\PycharmProjects\MIAlab project\mialab/filtering\hog_slices_y_v2'
+# #
+# # im = cv2.imread('/hog_slices/image_hog_feature_{}.png'.format(i), cv2.IMREAD_GRAYSCALE)
+# #
+# i = 0
+# while 1:
+#     im = image1_np[:, :, i]
+#     print(im.shape)
+#     print(im.min())
+#     print(im.max())
+#     im = (im - im.min()) / (im.max() - im.min() + sys.float_info.epsilon)
+#
+#     print('... ' + 'i = ' + str(i))
+#     cv2.imshow('i = ' + str(i), im)
+#     cv2.waitKey()
+#     i += 1
+#     if i == 63:
+#         i = 0
+#
+# # ---------------------------------------
 # file_names = []
-# for feature_i in range(image_arr.shape[2]):
-#     saving_img_arr = image_arr[:, :, feature_i]
+#
+# for i in range(image1_np.shape[3]):
+#     saving_img_arr = image1_np[:, 110, :, i]
 #     saving_img = sitk.GetImageFromArray(saving_img_arr)
-#     file_name = 'feature{0}.png'.format(feature_i)
+#     file_name = 'image_hog_feature_{}.png'.format(i)
 #     saving_path = os.path.join(new_dir_path, file_name)
 #     sitk.WriteImage(sitk.Cast(sitk.RescaleIntensity(saving_img), sitk.sitkUInt8), saving_path)
 #     file_names.append(file_name)

@@ -1,18 +1,28 @@
 from bin.multiple_boxplots_combos import main
-import numpy as np
-import timeit
 
-# # method 1 directory, method 2 directory, output directory
-# method_1_path = 'C:/Users/afons/OneDrive - Universidade de Lisboa/Erasmus/studies/MIAlab/project/Results_midterm/MIALab_tests/test1_results/results.csv'
-# method_2_path = 'C:/Users/afons/OneDrive - Universidade de Lisboa/Erasmus/studies/MIAlab/project/Results_midterm/MIALab_tests/test4_results/results.csv'
-# output_path = 'C:/Users/afons/OneDrive - Universidade de Lisboa/Erasmus/studies/MIAlab/project/Results_midterm/MIALab_tests/testing_multiple_bxplt'
-#
-# main(method_1_path, method_2_path, output_path)
+''' This file was used to call the scripts of the box plots used in the presentation and article:
 
-# --------------------------------------- testing parameters -----------------------------
+   (1) multiple_boxplots_RF_grid_search.py was used for the grid search using only the baseline features
 
-# method 1 directory, method 2 directory, output directory
-test_folder_path = 'C:/Users/afons/OneDrive - Universidade de Lisboa/Erasmus/studies/MIAlab/project/Results_midterm/tree_test'
-output_path = 'C:/Users/afons/OneDrive - Universidade de Lisboa/Erasmus/studies/MIAlab/project/Results_midterm/MIALab_tests/tree_test'
+   (2) multiple_boxplots_fof_glcm.py was used for testing:
+           • individual FOFs + baseline features
+           • GLCMFs + baseline features
+           • baseline features alone
+
+   (3) multiple_boxplots_combos.py was used for the combination tests:
+           • best selected FOFs + baseline features
+           • best selected GLCMFs + baseline features
+           • best selected FOFs + best selected GLCMFs + baseline features
+           • all FOFs + all GLCMFs + baseline features
+   
+   Notes:
+   FOFs = First Order Features
+   GLCMFs = Grey Level Co-occurrence Matrix Features
+   multiple_boxplots_compare_2 was only used to compare 2 methods during our initial research
+'''
+
+# input directory, output directory
+test_folder_path = 'C:/Users/afons/OneDrive - Universidade de Lisboa/Erasmus/studies/MIAlab/project/Results_midterm/combo_experiments_w_baseline'
+output_path = 'C:/Users/afons/OneDrive - Universidade de Lisboa/Erasmus/studies/MIAlab/project/Results_midterm/MIALab_tests/a_boxplots_presentation/combo_fofs_sofs_w_baseline_article'
 
 main(test_folder_path, output_path)

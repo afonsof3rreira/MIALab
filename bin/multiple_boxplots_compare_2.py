@@ -9,18 +9,6 @@ import matplotlib
 matplotlib.use('Agg')
 
 
-def set_box_format(bp, color):
-    plt.setp(bp['boxes'], color=color)
-    plt.setp(bp['whiskers'], color=color)
-    plt.setp(bp['caps'], color=color)
-    plt.setp(bp['caps'], linewidth=0)
-    plt.setp(bp['medians'], color=color)
-    plt.setp(bp['medians'], linewidth=1.5)
-    plt.setp(bp['fliers'], marker='.')
-    plt.setp(bp['fliers'], markerfacecolor='black')
-    plt.setp(bp['fliers'], alpha=1)
-
-
 def boxplot(file_path: str, data: dict, title: str, used_metric: str, x_label: str, y_label: str, x_ticks: tuple,
             min_: float = None, max_: float = None):
     """Generates a boxplot for the chosen metric (y axis) comparing 2 different tests for each label in groups of 2 (x axis)
@@ -92,7 +80,8 @@ def boxplot(file_path: str, data: dict, title: str, used_metric: str, x_label: s
     print('new')
     print(x_tick_l)
 
-    ax.set_xticklabels(x_tick_l, fontdict={'fontsize': 8, 'fontweight': 'bold'}, rotation=35, fontsize=8, linespacing=1.5)
+    ax.set_xticklabels(x_tick_l, fontdict={'fontsize': 8, 'fontweight': 'bold'}, rotation=35, fontsize=8,
+                       linespacing=1.5)
 
     # remove frame
     ax.spines['top'].set_visible(False)
@@ -132,9 +121,6 @@ def boxplot(file_path: str, data: dict, title: str, used_metric: str, x_label: s
 
 def format_data(data, label: str, metric: str):
     return data[data['LABEL'] == label][metric].values
-
-
-# def concat_formatted_data(data_list):
 
 
 def metric_to_readable_text(metric: str):

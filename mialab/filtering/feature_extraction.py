@@ -1,14 +1,10 @@
 """The feature extraction module contains classes for feature extraction."""
 import sys
-
 import SimpleITK as sitk
 import numpy as np
 import pymia.filtering.filter as fltr
 import multiprocessing
 import time
-
-
-# from radiomics import shape.RadiomicsShape
 
 
 class AtlasCoordinates(fltr.Filter):

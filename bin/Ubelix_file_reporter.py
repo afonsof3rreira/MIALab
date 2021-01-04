@@ -1,28 +1,9 @@
 import os
-import numpy as np
 
+'''
+this script writes a txt file containing the used features in the desired output folder. It is called by the main.
+'''
 
-# featureList = []
-# first_order_subL = []
-# first_order_subL.append('la')
-# first_order_subL.append('lolala')
-# others = []
-# others.append('lalal')
-# featureList.append(first_order_subL)
-# featureList.append(others)
-#
-# three = []
-# three.append('la')
-# three.append('lo')
-# three.append('ka')
-# three.append('kAo')
-#
-# featureList = {1: 'first_order_subL', 2: 'others'}
-# featureList.update({5: three})
-# # print(featureList)
-#
-# path = 'C:/Users/afons/PycharmProjects/MIAlab project/bin'
-# filename = 'result_report'
 
 def feature_writer(path: str, feature_dic: dict, running_time: float, filename: str):
     non_feature_list = ['skullstrip_pre', 'normalization_pre', 'registration_pre']
